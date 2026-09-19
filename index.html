@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalshi P&L Calendar</title>
+<link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Kalshi P&amp;L Calendar</h1>
+      <div class="subtitle">Upload a Kalshi CSV to view your realized P&amp;L after fees.</div>
+    </div>
+    <div class="upload">
+      <label class="file-label" id="uploadLabel" for="csvFile">Upload Kalshi CSV</label>
+      <input id="csvFile" type="file" accept=".csv,.txt">
+      <button class="btn" id="resetBtn">Clear data</button>
+    </div>
+  </div>
+
+  <section class="card settings" aria-label="Account and preferences">
+    <div class="account-row">
+      <div>
+        <div id="accountInfo">Loading…</div>
+        <p class="hint" id="cloudUnavailable" hidden>Account sync is not enabled on this site. Uploads are saved in this browser.</p>
+      </div>
+      <button class="btn" id="signOutBtn" hidden>Sign out</button>
+    </div>
+    <form id="signInForm" class="account-row" hidden>
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+      <button class="btn" id="signInBtn" type="submit">Sign in / create account</button>
+      <span class="hint">An email link signs you in. Upload again after signing in to save a guest CSV to your account.</span>
+    </form>
+    <p id="authStatus" class="hint" role="status"></p>
+    <div class="account-row">
+      <label for="timeZone">Time zone</label>
+      <select id="timeZone" aria-describedby="timezoneHint"></select>
+      <span class="hint" id="timezoneHint">Groups trades by their closing time, including daylight saving time.</span>
+    </div>
+    <p id="fileInfo" class="hint"></p>
+    <div class="account-row">
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <button class="btn" id="saveBtn" hidden>Retry save</button>
+      <button class="btn" id="reloadBtn" hidden>Retry loading</button>
+    </div>
+  </section>
+
+  <p class="hint">Statistics for the displayed month · net of fees</p>
+  <div class="grid">
+    <div class="card stat"><div class="label">Month P&amp;L</div><div class="value" id="monthPnl">—</div><div class="hint">Sum of realized P&amp;L after fees.</div></div>
+    <div class="card stat"><div class="label">Closed trades</div><div class="value" id="tradeCount">—</div><div class="hint">One valid CSV row per close, including settlements; not individual fills or contracts.</div></div>
+    <div class="card stat"><div class="label">Win rate</div><div class="value" id="winRate">—</div><div class="hint">Profitable closes ÷ all closes, including breakeven trades.</div></div>
+    <div class="card stat"><div class="label">Average P&amp;L / trade</div><div class="value" id="averagePnl">—</div><div class="hint">Net P&amp;L ÷ number of closes.</div></div>
+    <div class="card stat"><div class="label">Profit factor</div><div class="value" id="profitFactor">—</div><div class="hint">Total winning P&amp;L ÷ absolute losing P&amp;L. ∞ means gains with no losses; — means no gains or losses.</div></div>
+    <div class="card stat"><div class="label">Max drawdown</div><div class="value" id="drawdown">—</div><div class="hint">Largest peak-to-trough drop in cumulative realized P&amp;L within this month, starting at $0. Simultaneous closes are combined.</div></div>
+  </div>
+
+  <div class="main">
+    <div class="card calendar-card">
+      <div class="toolbar">
+        <div class="month-title" id="monthTitle"></div>
+        <div class="month-nav">
+          <button class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
+          <button class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="weekdays">
+        <div class="weekday">Mon</div><div class="weekday">Tue</div><div class="weekday">Wed</div>
+        <div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div>
+        <div class="weekday">Sun</div>
+      </div>
+      <div class="calendar" id="calendar"></div>
+      <div class="foot">
+        Green = positive realized P&amp;L. Red = negative. Days with no closed trades show a dash. Trade counts represent CSV close rows, not contract quantities.
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card chart-card">
+        <div class="section-title">Cumulative P&amp;L</div>
+        <canvas id="chart" width="520" height="260"></canvas>
+      </div>
+
+      <div class="card days-card">
+        <div class="section-title">Daily Breakdown</div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Date</th><th>Trades</th><th>P&amp;L</th></tr></thead>
+            <tbody id="dailyTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./assets/app.js"></script>
+</body>
+</html>
