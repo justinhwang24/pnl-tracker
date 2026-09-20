@@ -1,8 +1,10 @@
+import { calendarPreferences } from './preferences.js';
+import { importKalshiKey, fetchKalshiHistory } from './kalshi.js';
 import { parseKalshiCSV } from './csv.js';
 import { newestMonth, monthEntries } from './pnl.js';
 import { aggregateTrades, monthlyTrades } from './analytics.js';
-import { defaultTimeZone, timeZones, dateFormatter, dateInZone } from './timezone.js';
-import { createGuestStore, createAccountStore } from './storage.js';
+import { defaultTimeZone, dateFormatter, dateInZone } from './timezone.js';
+import { createAccountStore } from './storage.js';
 import { createBackend } from './backend.js';
 import { maxCsvBytes } from './config.js';
 import { renderCalendar } from './views/calendar.js';
@@ -16,6 +18,17 @@ let record = { csv: '', filename: '', timeZone: defaultTimeZone() };
 let currentMonth;
 let backend = null, user = null, store = null;
 let generation = 0, busy = false, identity;
+let kalshiKey = null, kalshiKeyId = '', syncController = null;
+
+function forgetKalshi() {
+  syncController?.abort();
+  kalshiKey = null;
+  kalshiKeyId = '';
+  el('kalshiPrivateKey').value = '';
+  el('kalshiPrivateKey').required = true;
+  el('kalshiKeyId').value = '';
+  el('kalshiStatus').textContent = '';
+}
 
 function status(message, error = false) {
   el('status').textContent = message;
@@ -24,18 +37,10 @@ function status(message, error = false) {
 
 function setBusy(value) {
   busy = value;
-  for (const id of ['csvFile', 'resetBtn', 'timeZone', 'saveBtn', 'signOutBtn', 'signInBtn']) {
+  for (const id of ['csvFile', 'resetBtn', 'saveBtn', 'signOutBtn', 'kalshiSyncBtn', 'kalshiKeyId', 'kalshiPrivateKey', 'kalshiDisconnectBtn']) {
     el(id).disabled = value;
   }
   el('uploadLabel').classList.toggle('disabled', value);
-}
-
-function setTimeZone(value) {
-  dateFormatter(value); // Validate saved preferences before applying them.
-  if (![...el('timeZone').options].some(option => option.value === value)) {
-    el('timeZone').add(new Option(value.replaceAll('_', ' '), value));
-  }
-  el('timeZone').value = value;
 }
 
 function render(resetMonth = false) {
@@ -45,20 +50,19 @@ function render(resetMonth = false) {
     currentMonth = newestMonth(Object.keys(pnlByDate).length ? pnlByDate : { [today]: 0 });
   }
   const entries = monthEntries(pnlByDate, currentMonth);
-  renderCalendar(pnlByDate, currentMonth, countsByDate);
+  renderCalendar(pnlByDate, currentMonth, countsByDate, calendarPreferences(user, record.timeZone));
   renderStats(monthlyTrades(datedTrades, currentMonth));
   renderTable(entries, countsByDate);
   renderChart(entries);
   el('fileInfo').textContent = record.filename
     ? `${record.filename} · ${trades.length.toLocaleString()} closed trades${skipped ? ` · ${skipped} invalid rows skipped` : ''}`
-    : 'No CSV uploaded. Choose a file to get started.';
+    : 'No data imported. Connect Kalshi or choose a CSV to get started.';
 }
 
 function applyRecord(next) {
   const parsed = next?.csv ? parseKalshiCSV(next.csv) : { trades: [], skipped: 0 };
   const nextRecord = next || { csv: '', filename: '', timeZone: defaultTimeZone() };
-  setTimeZone(nextRecord.timeZone);
-  record = nextRecord;
+  record = { ...nextRecord, timeZone: calendarPreferences(user, nextRecord.timeZone).timeZone };
   trades = parsed.trades;
   skipped = parsed.skipped;
   render(true);
@@ -71,7 +75,7 @@ async function save() {
   try {
     await currentStore.save(record);
     if (version !== generation) return;
-    status(user ? 'Saved to your account.' : 'Saved in this browser. Sign in to save across devices.');
+    status('Saved to your account.');
   } catch (error) {
     if (version !== generation) return;
     el('saveBtn').hidden = false;
@@ -80,8 +84,18 @@ async function save() {
 }
 
 async function switchUser(nextUser, force = false) {
-  const nextIdentity = nextUser?.id || 'guest';
+  if (!nextUser) {
+    forgetKalshi();
+    ++generation;
+    setBusy(true);
+    document.getElementById('dashboard').hidden = true;
+    applyRecord(null);
+    window.location.replace(new URL('./auth.html', window.location.href));
+    return;
+  }
+  const nextIdentity = nextUser.id;
   if (!force && identity === nextIdentity) return;
+  forgetKalshi();
   identity = nextIdentity;
   const version = ++generation;
   user = nextUser;
@@ -90,17 +104,16 @@ async function switchUser(nextUser, force = false) {
   el('reloadBtn').hidden = true;
   el('csvFile').value = '';
   applyRecord(null); // Never leave a previous user's CSV visible while loading.
-  el('accountInfo').textContent = user ? `Signed in as ${user.email}` : 'Guest · data stays in this browser';
+  el('accountInfo').textContent = `Signed in as ${user.email}`;
   el('signOutBtn').hidden = !user;
-  el('signInForm').hidden = !!user || !backend;
-  el('authStatus').textContent = '';
+  el('signInLink').hidden = !!user;
   status('Loading saved data…');
   try {
-    store = user ? createAccountStore(backend, user.id) : createGuestStore(window.localStorage);
+    store = createAccountStore(backend, user.id);
     const saved = await store.load();
     if (version !== generation) return;
     applyRecord(saved);
-    status(saved ? (user ? 'Restored your latest account upload.' : 'Restored your latest browser upload.') : 'Upload a CSV to begin.');
+    status(saved ? 'Restored your latest account upload.' : 'Connect Kalshi or upload a CSV to begin.');
   } catch (error) {
     if (version !== generation) return;
     status(`Could not load saved data: ${error.message}`, true);
@@ -110,10 +123,53 @@ async function switchUser(nextUser, force = false) {
   }
 }
 
-for (const zone of timeZones()) el('timeZone').add(new Option(zone.replaceAll('_', ' '), zone));
-setTimeZone(record.timeZone);
 render();
 setBusy(true);
+
+el('connectKalshiBtn').addEventListener('click', () => {
+  const panel = el('kalshiPanel');
+  panel.hidden = !panel.hidden;
+  el('connectKalshiBtn').setAttribute('aria-expanded', String(!panel.hidden));
+  if (!panel.hidden) el('kalshiKeyId').focus();
+});
+el('kalshiDisconnectBtn').addEventListener('click', () => {
+  forgetKalshi();
+  el('kalshiStatus').textContent = 'Credentials forgotten. Imported data is still saved to your account.';
+});
+el('kalshiForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (busy || !user) return;
+  const version = generation;
+  const keyId = el('kalshiKeyId').value.trim();
+  const controller = new AbortController();
+  syncController = controller;
+  setBusy(true);
+  el('kalshiStatus').textContent = 'Connecting to Kalshi…';
+  try {
+    if (!/^[a-zA-Z0-9-]{1,100}$/.test(keyId)) throw new Error('Enter a valid API key ID.');
+    let key = kalshiKey;
+    if (el('kalshiPrivateKey').value.trim()) key = await importKalshiKey(el('kalshiPrivateKey').value);
+    else if (keyId !== kalshiKeyId) throw new Error('Enter the private key that belongs to this key ID.');
+    if (!key) throw new Error('Enter your Kalshi private key.');
+    if (version !== generation) return;
+    kalshiKey = key; kalshiKeyId = keyId;
+    el('kalshiPrivateKey').value = '';
+    el('kalshiPrivateKey').required = false;
+    const csv = await fetchKalshiHistory(backend, keyId, key, message => {
+      if (version === generation) el('kalshiStatus').textContent = message;
+    }, controller.signal);
+    if (version !== generation) return;
+    if (new Blob([csv]).size > maxCsvBytes) throw new Error('Imported history exceeds the 2 MB account limit. Use a smaller CSV.');
+    applyRecord({ csv, filename: `Kalshi API · FIFO estimate · synced ${new Date().toISOString()}`, timeZone: record.timeZone });
+    status('Saving Kalshi history…');
+    await save();
+    if (version === generation) el('kalshiStatus').textContent = 'Sync complete. Select Sync Kalshi again to refresh. Credentials remain only in this tab.';
+  } catch (error) {
+    if (version === generation) el('kalshiStatus').textContent = `Could not sync: ${error.message}`;
+  } finally {
+    if (version === generation) { syncController = null; setBusy(false); }
+  }
+});
 
 el('csvFile').addEventListener('change', async event => {
   const file = event.target.files[0];
@@ -132,16 +188,6 @@ el('csvFile').addEventListener('change', async event => {
   } finally {
     if (version === generation) { event.target.value = ''; setBusy(false); }
   }
-});
-
-el('timeZone').addEventListener('change', async event => {
-  if (busy) return;
-  const version = generation;
-  setBusy(true);
-  record = { ...record, timeZone: event.target.value };
-  render(true);
-  await save();
-  if (version === generation) setBusy(false);
 });
 
 el('resetBtn').addEventListener('click', async () => {
@@ -177,22 +223,6 @@ for (const [id, delta] of [['prevMonth', -1], ['nextMonth', 1]]) {
   });
 }
 
-el('signInForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  if (busy || !backend) return;
-  el('signInBtn').disabled = true;
-  try {
-    const redirect = new URL('./', window.location.href).href;
-    const { error } = await backend.auth.signInWithOtp({
-      email: el('email').value.trim(), options: { emailRedirectTo: redirect },
-    });
-    if (error) throw error;
-    el('authStatus').textContent = 'Check your email for a sign-in link. Open it to create or access your account.';
-  } catch (error) {
-    el('authStatus').textContent = `Could not send sign-in link: ${error.message}`;
-  } finally { el('signInBtn').disabled = busy; }
-});
-
 el('signOutBtn').addEventListener('click', async () => {
   if (busy || !backend) return;
   el('signOutBtn').disabled = true;
@@ -204,17 +234,30 @@ el('signOutBtn').addEventListener('click', async () => {
 async function initialize() {
   try {
     backend = createBackend();
-    el('cloudUnavailable').hidden = !!backend;
     if (!backend) { await switchUser(null); return; }
-    const { data, error } = await backend.auth.getSession();
-    if (error) throw error;
+    const callback = new URLSearchParams(window.location.hash.slice(1));
+    if (callback.has('error')) {
+      const reason = callback.get('error_code') === 'otp_expired' ? 'link_expired' : 'sign_in_failed';
+      window.location.replace(new URL(`./auth.html?error=${reason}`, window.location.href));
+      return;
+    }
+    const { data: sessionData, error: sessionError } = await backend.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!sessionData.session) { await switchUser(null); return; }
+    const { data, error } = await backend.auth.getUser();
+    if (error || !data.user) { await switchUser(null); return; }
     backend.auth.onAuthStateChange((_event, session) => {
       // Keep database requests outside the auth callback's lock.
       setTimeout(() => switchUser(session?.user || null), 0);
     });
-    await switchUser(data.session?.user || null);
+    el('authGate').hidden = true;
+    el('dashboard').hidden = false;
+    await switchUser(data.user);
   } catch (error) {
-    status(`Accounts could not initialize: ${error.message}. Reload to retry.`, true);
+    el('gateStatus').textContent = `Could not verify your session: ${error.message}. Reload to retry.`;
   }
 }
 initialize();
+
+window.addEventListener('pageshow', event => { if (event.persisted) window.location.reload(); });
+window.addEventListener('pagehide', forgetKalshi);

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Closebook</title>
+<link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+<header class="site-header"><a class="brand" href="./index.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./index.html">Home</a><a href="./dashboard.html" aria-current="page">Dashboard</a><a href="./settings.html">Settings</a><a class="btn" id="signInLink" href="./auth.html">Sign in</a><button class="btn" id="signOutBtn" hidden>Sign out</button></nav></header>
+<section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth.html">Go to sign in</a></section>
+<main class="wrap" id="dashboard" hidden>
+  <div class="top">
+    <div>
+      <div class="eyebrow">YOUR TRADING WORKSPACE</div><h1>Performance overview</h1>
+      <div class="subtitle">Sync your Kalshi account or upload a CSV to view realized P&amp;L after fees.</div>
+    </div>
+    <div class="upload">
+      <button class="btn" id="connectKalshiBtn" aria-expanded="false" aria-controls="kalshiPanel">Connect Kalshi</button>
+      <label class="file-label" id="uploadLabel" for="csvFile">Upload Kalshi CSV</label>
+      <input id="csvFile" type="file" accept=".csv,.txt" disabled>
+      <button class="btn" id="resetBtn">Clear data</button>
+    </div>
+  </div>
+
+  <section class="card kalshi-panel" id="kalshiPanel" hidden aria-labelledby="kalshiTitle">
+    <h2 id="kalshiTitle">Import directly from Kalshi</h2>
+    <p class="hint">Create a key in <a href="https://kalshi.com/account/profile" target="_blank" rel="noopener noreferrer">Kalshi’s API settings</a>, then enter its ID and private key. Choose read-only permissions when available.</p>
+    <form id="kalshiForm">
+      <label for="kalshiKeyId">API key ID</label>
+      <input id="kalshiKeyId" type="text" autocomplete="off" spellcheck="false" maxlength="100" required>
+      <label for="kalshiPrivateKey">Private key</label>
+      <textarea id="kalshiPrivateKey" rows="4" autocomplete="off" spellcheck="false" maxlength="20000" placeholder="-----BEGIN RSA PRIVATE KEY-----" required></textarea>
+      <p class="hint">Your private key stays in this browser tab and is never saved. Only signed read requests are sent. Re-enter credentials after leaving this page.</p>
+      <p class="hint">Sync imports primary-account history and replaces the displayed dataset. P&amp;L is reconstructed using FIFO and trade fees; figures and close counts may differ from Kalshi’s CSV report.</p>
+      <div class="account-row"><button class="btn primary" id="kalshiSyncBtn" type="submit">Sync Kalshi</button><button class="btn" id="kalshiDisconnectBtn" type="button">Forget credentials</button></div>
+      <p class="status" id="kalshiStatus" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section class="settings" aria-label="Upload status">
+    <div class="workspace-meta"><span id="accountInfo">Loading…</span></div>
+    <p id="fileInfo" class="hint"></p>
+    <div class="account-row">
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <button class="btn" id="saveBtn" hidden>Retry save</button>
+      <button class="btn" id="reloadBtn" hidden>Retry loading</button>
+    </div>
+  </section>
+
+  <p class="hint">Statistics for the displayed month · net of fees</p>
+  <div class="grid">
+    <div class="card stat"><div class="label">Month P&amp;L</div><div class="value" id="monthPnl">—</div><div class="hint">Sum of realized P&amp;L after fees.</div></div>
+    <div class="card stat"><div class="label">Closed trades</div><div class="value" id="tradeCount">—</div><div class="hint">One CSV close row, or one API fill that closes exposure or settlement. Not contract quantities.</div></div>
+    <div class="card stat"><div class="label">Win rate</div><div class="value" id="winRate">—</div><div class="hint">Profitable closes ÷ all closes, including breakeven trades.</div></div>
+    <div class="card stat"><div class="label">Average P&amp;L / trade</div><div class="value" id="averagePnl">—</div><div class="hint">Net P&amp;L ÷ number of closes.</div></div>
+    <div class="card stat"><div class="label">Profit factor</div><div class="value" id="profitFactor">—</div><div class="hint">Total winning P&amp;L ÷ absolute losing P&amp;L. ∞ means gains with no losses; — means no gains or losses.</div></div>
+    <div class="card stat"><div class="label">Max drawdown</div><div class="value" id="drawdown">—</div><div class="hint">Largest peak-to-trough drop in cumulative realized P&amp;L within this month, starting at $0. Simultaneous closes are combined.</div></div>
+  </div>
+
+  <div class="main">
+    <div class="card calendar-card">
+      <div class="toolbar">
+        <div class="month-title" id="monthTitle"></div>
+        <div class="month-nav">
+          <button class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
+          <button class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="weekdays" id="weekdays"></div>
+      <div class="calendar" id="calendar"></div>
+      <div class="foot">
+        Green = positive realized P&amp;L. Red = negative. Days with no closed trades show a dash. Trade counts represent closes, not contract quantities.
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card chart-card">
+        <div class="section-title">Cumulative P&amp;L</div>
+        <canvas id="chart" width="520" height="260"></canvas>
+      </div>
+
+      <div class="card days-card">
+        <div class="section-title">Daily Breakdown</div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Date</th><th>Trades</th><th>P&amp;L</th></tr></thead>
+            <tbody id="dailyTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="./assets/app.js"></script>
+</body>
+</html>

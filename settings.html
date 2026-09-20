@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Settings · Closebook</title><link rel="stylesheet" href="./styles/main.css"></head>
+<body>
+<header class="site-header"><a class="brand" href="./index.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard.html">Dashboard</a><a href="./settings.html" aria-current="page">Settings</a></nav></header>
+<section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth.html">Go to sign in</a></section>
+<main class="preferences-page wrap" id="settingsPage" hidden>
+  <div class="eyebrow">YOUR WORKSPACE, YOUR WAY</div><h1>Settings</h1><p class="subtitle">Choose how your trading performance is displayed.</p>
+  <form id="settingsForm" class="card preferences-card"><fieldset id="settingsFields"><legend>Calendar preferences</legend>
+    <div class="preference-row"><div><label for="timeZone">Time zone</label><p class="hint" id="timezoneHint">Group closes and monthly results in your time zone. Daylight saving time is handled automatically.</p></div><select id="timeZone" aria-describedby="timezoneHint"></select></div>
+    <div class="preference-row"><div><label for="showTrades">Show number of trades</label><p class="hint" id="tradesHint">Display the number of closes in each calendar day.</p></div><input id="showTrades" type="checkbox" aria-describedby="tradesHint"></div>
+    <div class="preference-row"><div><label for="rounding">Round P&amp;L to the nearest dollar</label><p class="hint" id="roundingHint">Show whole dollars in the calendar. Calculations and other metrics keep their full precision.</p></div><input id="rounding" type="checkbox" aria-describedby="roundingHint"></div>
+    <div class="preference-row"><div><label for="weekStart">Start of week</label><p class="hint">Choose the first day in your calendar.</p></div><select id="weekStart"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></div>
+    <div class="preference-actions"><button class="btn primary" id="saveSettings" type="submit">Save settings</button><a class="btn" href="./dashboard.html">Back to dashboard</a></div>
+  </fieldset><p id="settingsStatus" class="status" role="status" aria-live="polite"></p></form>
+</main>
+<script type="module" src="./assets/settings.js"></script>
+</body></html>

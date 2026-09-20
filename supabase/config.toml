@@ -1,0 +1,4 @@
+# Authentication is verified with Supabase Auth inside the function, including
+# projects using publishable keys and asymmetric JWT signing keys.
+[functions.kalshi-read]
+verify_jwt = false
