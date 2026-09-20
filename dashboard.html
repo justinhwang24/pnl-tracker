@@ -35,6 +35,11 @@
       <p class="hint">Sync imports primary-account history and replaces the displayed dataset. P&amp;L is reconstructed using FIFO and trade fees; figures and close counts may differ from Kalshi’s CSV report.</p>
       <div class="account-row"><button class="btn primary" id="kalshiSyncBtn" type="submit">Sync Kalshi</button><button class="btn" id="kalshiDisconnectBtn" type="button">Forget credentials</button></div>
       <p class="status" id="kalshiStatus" role="status" aria-live="polite"></p>
+      <div id="kalshiDiagnostics" hidden>
+        <label for="kalshiDiagnosticText">Sync diagnostics — no credentials or market names</label>
+        <textarea id="kalshiDiagnosticText" rows="8" readonly spellcheck="false"></textarea>
+        <button class="btn" id="copyKalshiDiagnostics" type="button">Copy sync diagnostics</button>
+      </div>
     </form>
   </section>
 

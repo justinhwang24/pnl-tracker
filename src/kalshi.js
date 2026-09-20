@@ -65,6 +65,39 @@ function time(value) {
   if (!Number.isFinite(parsed)) throw new Error('Kalshi history has an invalid timestamp.');
   return parsed;
 }
+
+export function settlementDiagnostic(fills, settlement, lots) {
+  const matching = fills.filter(fill => (fill.ticker || fill.market_ticker) === settlement.ticker);
+  const groups = new Map();
+  const seen = new Set();
+  for (const fill of matching) {
+    const id = fill.fill_id || fill.trade_id;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const fields = {
+      exchange: fill.exchange_index ?? 'missing', subaccount: fill.subaccount_number ?? 'missing',
+      outcome: fill.outcome_side ?? 'missing', book: fill.book_side ?? 'missing',
+      action: fill.action ?? 'missing', side: fill.side ?? 'missing',
+    };
+    const key = JSON.stringify(fields);
+    const group = groups.get(key) || { ...fields, fills: 0, quantity: 0 };
+    group.fills++;
+    group.quantity += Number(fill.count_fp ?? fill.count) || 0;
+    groups.set(key, group);
+  }
+  // Deliberate allowlist: no credentials, signatures, user IDs, tickers, prices,
+  // fees, or raw API responses. Enough to diagnose direction/schema mismatches.
+  return {
+    version: 1,
+    exchange: settlement.exchange_index ?? 'missing',
+    settlement: { yes: settlement.yes_count_fp ?? settlement.yes_count, no: settlement.no_count_fp ?? settlement.no_count },
+    reconstructed: {
+      yes: lots.filter(lot => lot.side === 'yes').reduce((sum, lot) => sum + lot.quantity, 0),
+      no: lots.filter(lot => lot.side === 'no').reduce((sum, lot) => sum + lot.quantity, 0),
+    },
+    fillGroups: [...groups.values()],
+  };
+}
 // FIFO matches opposing exposure. Fees are allocated to each closed quantity;
 // fees on remaining open lots stay with those lots until sale or settlement.
 export function historyToCSV(fills, settlements) {
@@ -115,7 +148,11 @@ export function historyToCSV(fills, settlements) {
       const no = number(s.no_count_fp ?? s.no_count, 'settlement quantity');
       for (const [side, count] of [['yes', yes], ['no', no]]) {
         const reconstructed = lots.filter(lot => lot.side === side).reduce((sum, lot) => sum + lot.quantity, 0);
-        if (count < 0 || Math.abs(count - reconstructed) > 1e-6) throw new Error('Trade history does not match settled positions. Use a CSV for this account.');
+        if (count < 0 || Math.abs(count - reconstructed) > 1e-6) {
+          const error = new Error('Kalshi returned conflicting position quantities. Your existing data has been kept. Copy the sync diagnostics below and send them here so we can identify the mismatch.');
+          error.diagnostic = settlementDiagnostic(fills, s, lots);
+          throw error;
+        }
       }
       if (yes + no > 0) {
         const revenue = number(s.revenue, 'settlement revenue') / 100;

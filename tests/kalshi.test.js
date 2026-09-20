@@ -31,7 +31,13 @@ test('legacy buy/sell and book-side fields are supported', () => {
   assert.deepEqual(pnls([{ ...a, book_side: 'bid' }, { ...b, book_side: 'ask' }]), [.3]);
 });
 test('incomplete data fails instead of manufacturing P&L', () => {
-  assert.throws(() => pnls([], [settlement(10, 0, 1000)]), /does not match/);
+  assert.throws(() => pnls([], [settlement(10, 0, 1000)]), error => {
+    assert.match(error.message, /conflicting position quantities/);
+    assert.deepEqual(error.diagnostic.reconstructed, { yes: 0, no: 0 });
+    assert.deepEqual(error.diagnostic.settlement, { yes: '10', no: '0' });
+    assert.equal(JSON.stringify(error.diagnostic).includes('ticker'), false);
+    return true;
+  });
   assert.throws(() => pnls([{ ...fill('a', 'yes', 1, .5, 0), fee_cost: undefined }]), /trade fees/);
   assert.throws(() => pnls([fill('a', 'yes', 1, .5, 0)]), /No closed trades/);
 });

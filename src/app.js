@@ -28,6 +28,8 @@ function forgetKalshi() {
   el('kalshiPrivateKey').required = true;
   el('kalshiKeyId').value = '';
   el('kalshiStatus').textContent = '';
+  el('kalshiDiagnostics').hidden = true;
+  el('kalshiDiagnosticText').value = '';
 }
 
 function status(message, error = false) {
@@ -136,6 +138,16 @@ el('kalshiDisconnectBtn').addEventListener('click', () => {
   forgetKalshi();
   el('kalshiStatus').textContent = 'Credentials forgotten. Imported data is still saved to your account.';
 });
+el('copyKalshiDiagnostics').addEventListener('click', async () => {
+  const field = el('kalshiDiagnosticText');
+  try {
+    await navigator.clipboard.writeText(field.value);
+    el('kalshiStatus').textContent = 'Diagnostics copied. Paste them into our chat.';
+  } catch {
+    field.focus(); field.select();
+    el('kalshiStatus').textContent = 'Diagnostics selected. Press Command+C on Mac or Ctrl+C on Windows, then paste them into our chat.';
+  }
+});
 el('kalshiForm').addEventListener('submit', async event => {
   event.preventDefault();
   if (busy || !user) return;
@@ -145,6 +157,8 @@ el('kalshiForm').addEventListener('submit', async event => {
   syncController = controller;
   setBusy(true);
   el('kalshiStatus').textContent = 'Connecting to Kalshi…';
+  el('kalshiDiagnostics').hidden = true;
+  el('kalshiDiagnosticText').value = '';
   try {
     if (!/^[a-zA-Z0-9-]{1,100}$/.test(keyId)) throw new Error('Enter a valid API key ID.');
     let key = kalshiKey;
@@ -165,7 +179,13 @@ el('kalshiForm').addEventListener('submit', async event => {
     await save();
     if (version === generation) el('kalshiStatus').textContent = 'Sync complete. Select Sync Kalshi again to refresh. Credentials remain only in this tab.';
   } catch (error) {
-    if (version === generation) el('kalshiStatus').textContent = `Could not sync: ${error.message}`;
+    if (version === generation) {
+      el('kalshiStatus').textContent = `Could not sync: ${error.message}`;
+      if (error.diagnostic) {
+        el('kalshiDiagnosticText').value = JSON.stringify(error.diagnostic, null, 2);
+        el('kalshiDiagnostics').hidden = false;
+      }
+    }
   } finally {
     if (version === generation) { syncController = null; setBusy(false); }
   }

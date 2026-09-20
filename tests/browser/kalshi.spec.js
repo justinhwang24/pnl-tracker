@@ -59,3 +59,26 @@ test('failed API sync preserves previous data and permits retry and CSV upload',
   await expect(page.locator('#csvFile')).toBeEnabled();
   await expect(page.locator('#kalshiSyncBtn')).toBeEnabled();
 });
+
+test('settlement mismatch keeps saved data and offers credential-free diagnostics', async ({ page }) => {
+  await setup(page);
+  await page.route(`${mockUrl}/functions/v1/kalshi-read`, route => {
+    const { path } = route.request().postDataJSON();
+    return route.fulfill({ json: path === '/portfolio/settlements' ? { settlements: [{
+      ticker: 'PRIVATE-MARKET', yes_count_fp: '10', no_count_fp: '0', revenue: 1000,
+      settled_time: '2026-01-03T12:00:00Z',
+    }] } : { fills: [], cursor: '' } });
+  });
+  await page.goto('/dashboard.html');
+  await credentials(page);
+  await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
+  await expect(page.locator('#kalshiDiagnostics')).toBeVisible();
+  const diagnostic = await page.locator('#kalshiDiagnosticText').inputValue();
+  expect(JSON.parse(diagnostic).settlement).toEqual({ yes: '10', no: '0' });
+  expect(diagnostic).not.toMatch(/PRIVATE-MARKET|PRIVATE KEY|test-key-id/);
+  await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
+  await expect(page.getByRole('button', { name: 'Copy sync diagnostics' })).toBeVisible();
+  await page.getByRole('button', { name: 'Forget credentials' }).click();
+  await expect(page.locator('#kalshiDiagnostics')).toBeHidden();
+  await expect(page.locator('#kalshiDiagnosticText')).toHaveValue('');
+});
