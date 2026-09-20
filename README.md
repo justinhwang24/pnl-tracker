@@ -105,6 +105,9 @@ is deployed, sync displays an availability error and CSV upload still works.
   Entry and exit fill fees are allocated by quantity; open-lot fees are deferred
   until closing. Settlements use actual revenue and the remaining FIFO basis.
   Settlement cumulative trading fees are not deducted again.
+  Gross YES/NO settlement quantities are reconciled by their net exposure.
+  Paired collateral already recognized by FIFO closes is removed from gross
+  settlement payouts, so it is not counted twice. Net payouts are preserved.
 - One closing fill or nonempty settlement counts as one close. This can differ
   from Kalshi's realized-P&L export in cost-basis method, rounding, and row counts.
   Use the CSV for the figures and close grouping in Kalshi's report.

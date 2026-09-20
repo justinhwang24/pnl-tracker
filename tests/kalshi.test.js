@@ -102,3 +102,31 @@ test('proxy rejects expired sessions and sanitizes upstream errors', async () =>
   const expired = createHandler({ supabaseUrl: 'https://test.supabase.co', supabaseKey: 'anon', fetcher: async () => new Response('', { status: 401 }) });
   assert.equal((await expired(request(validBody()))).status, 401);
 });
+
+test('gross fractional settlement legs reconcile with net exposure without double counting collateral', () => {
+  // Reported failure: 16.35 NO bought, 13.51 opposing YES, net 2.84 NO.
+  // Prices and fees here are synthetic; only quantities/directions reproduce the report.
+  const fills = [fill('a', 'no', 16.35, .6, .1635), { ...fill('b', 'yes', 13.51, .3, .1351, 2), action: 'sell', side: 'yes' }];
+  for (const [result, gross, net] of [['yes', 1351, 0], ['no', 1635, 284]]) {
+    const grossRows = pnls(fills, [{ ...settlement(13.51, 16.35, gross), market_result: result }]);
+    const netRows = pnls(fills, [{ ...settlement(0, 2.84, net), market_result: result }]);
+    assert.deepEqual(grossRows, netRows);
+    assert.deepEqual(grossRows, result === 'yes' ? [3.7828, -1.1644] : [3.7828, 1.6756]);
+    // Some responses can report gross quantities with an already-netted payout.
+    assert.deepEqual(pnls(fills, [{ ...settlement(13.51, 16.35, net), market_result: result }]), netRows);
+  }
+});
+test('gross settlements handle net YES, fully paired positions, and scalar results', () => {
+  const fills = [fill('a', 'yes', 10, .4, .1), fill('b', 'no', 6, .7, .06, 2)];
+  assert.deepEqual(pnls(fills, [{ ...settlement(10, 6, 1000), market_result: 'yes' }]), [1.68, 2.36]);
+  assert.deepEqual(pnls(fills, [{ ...settlement(10, 6, 700), market_result: 'scalar', value: 25 }]), [1.68, -.64]);
+  assert.deepEqual(pnls([fill('a', 'yes', 10, .4, .1), fill('b', 'no', 10, .7, .1, 2)],
+    [{ ...settlement(10, 10, 1000), market_result: 'no' }]), [2.8]);
+});
+test('net reconciliation still rejects missing fills, negative counts, and inconsistent payouts', () => {
+  assert.throws(() => pnls([], [{ ...settlement(10, 10, 1000), market_result: 'yes' }]), /conflicting/);
+  const fills = [fill('a', 'yes', 10, .4, .1), fill('b', 'no', 6, .7, .06, 2)];
+  assert.throws(() => pnls(fills, [{ ...settlement(9, 6, 900), market_result: 'yes' }]), /conflicting/);
+  assert.throws(() => pnls(fills, [{ ...settlement(-1, -5, 0), market_result: 'yes' }]), /conflicting/);
+  assert.throws(() => pnls(fills, [{ ...settlement(10, 6, 9999), market_result: 'yes' }]), /payout does not match/);
+});

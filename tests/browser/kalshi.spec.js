@@ -82,3 +82,26 @@ test('settlement mismatch keeps saved data and offers credential-free diagnostic
   await expect(page.locator('#kalshiDiagnostics')).toBeHidden();
   await expect(page.locator('#kalshiDiagnosticText')).toHaveValue('');
 });
+
+test('gross settlement quantities sync into net FIFO P&L and survive reload', async ({ page }) => {
+  await setup(page);
+  await page.route(`${mockUrl}/functions/v1/kalshi-read`, route => {
+    const { path } = route.request().postDataJSON();
+    const fills = [
+      { ...entry, outcome_side: 'no', count_fp: '16.35', yes_price_dollars: '.6', no_price_dollars: '.4', fee_cost: '.1635' },
+      { ...exit, outcome_side: 'yes', count_fp: '13.51', yes_price_dollars: '.3', no_price_dollars: '.7', fee_cost: '.1351', action: 'sell', side: 'yes' },
+    ];
+    return route.fulfill({ json: path === '/historical/fills' ? { fills: [], cursor: '' } : path === '/portfolio/fills' ? { fills, cursor: '' } : {
+      settlements: [{ ticker: 'A', yes_count_fp: '13.51', no_count_fp: '16.35', revenue: 1635, market_result: 'no', settled_time: '2026-01-03T12:00:00Z' }],
+    } });
+  });
+  await page.goto('/dashboard.html');
+  await credentials(page);
+  await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
+  await expect(page.locator('#kalshiStatus')).toContainText('Sync complete');
+  await expect(page.locator('#monthPnl')).toHaveText('+$5.46');
+  await expect(page.locator('#tradeCount')).toHaveText('2');
+  await expect(page.locator('#kalshiDiagnostics')).toBeHidden();
+  await page.reload();
+  await expect(page.locator('#monthPnl')).toHaveText('+$5.46');
+});

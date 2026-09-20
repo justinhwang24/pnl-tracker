@@ -125,7 +125,7 @@ export function historyToCSV(fills, settlements) {
     events.push({ kind: 'settlement', ticker: settlement.ticker, exchange: settlement.exchange_index ?? 0, id, at, settlement });
   }
   events.sort((a, b) => a.at - b.at || (a.kind === b.kind ? a.id.localeCompare(b.id) : a.kind === 'fill' ? -1 : 1));
-  const positions = new Map(), closes = [];
+  const positions = new Map(), matched = new Map(), closes = [];
   for (const event of events) {
     if (!event.ticker) throw new Error('Kalshi history is missing a market ticker.');
     const market = `${event.exchange}:${event.ticker}`;
@@ -140,26 +140,45 @@ export function historyToCSV(fills, settlements) {
         closed += quantity; remaining -= quantity; lot.quantity -= quantity;
         if (lot.quantity < 1e-8) lots.shift();
       }
-      if (closed) closes.push({ at: event.at, pnl });
+      if (closed) {
+        closes.push({ at: event.at, pnl });
+        matched.set(market, (matched.get(market) || 0) + closed);
+      }
       if (remaining > 1e-8) lots.push({ side: event.side, quantity: remaining, price: event.price, fee: feePerContract });
     } else {
       const s = event.settlement;
       const yes = number(s.yes_count_fp ?? s.yes_count, 'settlement quantity');
       const no = number(s.no_count_fp ?? s.no_count, 'settlement quantity');
-      for (const [side, count] of [['yes', yes], ['no', no]]) {
+      // Settlements can retain both gross legs after fills have been netted.
+      // A YES/NO pair has no directional exposure and pays $1 in total.
+      const paired = Math.min(yes, no);
+      for (const [side, count] of [['yes', yes - paired], ['no', no - paired]]) {
         const reconstructed = lots.filter(lot => lot.side === side).reduce((sum, lot) => sum + lot.quantity, 0);
-        if (count < 0 || Math.abs(count - reconstructed) > 1e-6) {
+        if (yes < 0 || no < 0 || paired > (matched.get(market) || 0) + 1e-6 || Math.abs(count - reconstructed) > 1e-6) {
           const error = new Error('Kalshi returned conflicting position quantities. Your existing data has been kept. Copy the sync diagnostics below and send them here so we can identify the mismatch.');
           error.diagnostic = settlementDiagnostic(fills, s, lots);
           throw error;
         }
       }
-      if (yes + no > 0) {
-        const revenue = number(s.revenue, 'settlement revenue') / 100;
+      let revenue = number(s.revenue, 'settlement revenue') / 100;
+      if (paired > 0) {
+        const yesPayout = s.market_result === 'yes' ? 1 : s.market_result === 'no' ? 0 :
+          s.market_result === 'scalar' ? number(s.value, 'scalar settlement value') / 100 : NaN;
+        if (!Number.isFinite(yesPayout) || yesPayout < 0 || yesPayout > 1) throw new Error('Kalshi returned an unsupported settlement outcome. Your existing data has been kept.');
+        const netPayout = (yes - paired) * yesPayout + (no - paired) * (1 - yesPayout);
+        // API revenue is in integer cents. Retain its rounding, and accept only
+        // an identifiable gross or net payout. Never count paired collateral twice.
+        const grossDifference = Math.abs(revenue - (netPayout + paired));
+        const netDifference = Math.abs(revenue - netPayout);
+        if (Math.min(grossDifference, netDifference) > 0.010001) throw new Error('Kalshi settlement payout does not match its quantities. Your existing data has been kept.');
+        if (grossDifference < netDifference) revenue -= paired;
+      }
+      if (lots.length) {
         const cost = lots.reduce((sum, lot) => sum + lot.quantity * (lot.price + lot.fee), 0);
         closes.push({ at: event.at, pnl: revenue - cost });
       }
       positions.set(market, []);
+      matched.delete(market);
     }
   }
   if (!closes.length) throw new Error('No closed trades found in the primary account. Your existing data has been kept.');
