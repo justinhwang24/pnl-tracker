@@ -1,11 +1,14 @@
 import { createBackend } from './backend.js';
+import { initializeProfile } from './profile.js';
 import { createAccountStore } from './storage.js';
 import { calendarPreferences } from './preferences.js';
 import { timeZones, dateFormatter } from './timezone.js';
 
 const el = id => document.getElementById(id);
+const profile = initializeProfile();
 let backend, user;
 const login = () => {
+  profile.hide();
   el('settingsPage').hidden = true;
   window.location.replace(new URL('./auth.html', window.location.href));
 };
@@ -20,6 +23,7 @@ async function initialize() {
     const { data, error } = await backend.auth.getUser();
     if (error || !data.user) { login(); return; }
     user = data.user;
+    profile.show();
     backend.auth.onAuthStateChange((_event, session) => {
       if (!session || session.user.id !== user.id) login();
     });
@@ -64,3 +68,16 @@ el('settingsForm').addEventListener('submit', async event => {
   } finally { el('settingsFields').disabled = false; }
 });
 initialize();
+
+el('signOutBtn').addEventListener('click', async () => {
+  if (!backend) return;
+  el('signOutBtn').disabled = true;
+  try {
+    const { error } = await backend.auth.signOut({ scope: 'local' });
+    if (error) throw error;
+    login();
+  } catch (error) {
+    el('settingsStatus').textContent = `Could not sign out: ${error.message}`;
+    el('signOutBtn').disabled = false;
+  }
+});

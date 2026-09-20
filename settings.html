@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Settings · Closebook</title><link rel="stylesheet" href="./styles/main.css"></head>
 <body>
-<header class="site-header"><a class="brand" href="./index.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard.html">Dashboard</a><a href="./settings.html" aria-current="page">Settings</a></nav></header>
+<header class="site-header"><a class="brand" href="./dashboard.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard.html">Dashboard</a><div class="profile" id="profile" hidden><button class="btn profile-button" id="profileBtn" type="button" aria-expanded="false" aria-controls="profileDropdown">Profile <span aria-hidden="true">⌄</span></button><div class="profile-dropdown" id="profileDropdown" hidden><a href="./settings.html">Settings</a><button id="signOutBtn" type="button">Sign Out</button></div></div></nav></header>
 <section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth.html">Go to sign in</a></section>
 <main class="preferences-page wrap" id="settingsPage" hidden>
   <div class="eyebrow">YOUR WORKSPACE, YOUR WAY</div><h1>Settings</h1><p class="subtitle">Choose how your trading performance is displayed.</p>

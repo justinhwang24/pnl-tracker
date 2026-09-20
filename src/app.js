@@ -1,4 +1,5 @@
 import { calendarPreferences } from './preferences.js';
+import { initializeProfile } from './profile.js';
 import { importKalshiKey, fetchKalshiHistory } from './kalshi.js';
 import { parseKalshiCSV } from './csv.js';
 import { newestMonth, monthEntries } from './pnl.js';
@@ -13,36 +14,54 @@ import { renderTable } from './views/table.js';
 import { renderChart } from './views/chart.js';
 
 const el = id => document.getElementById(id);
+const profile = initializeProfile();
 let trades = [], skipped = 0;
 let record = { csv: '', filename: '', timeZone: defaultTimeZone() };
 let currentMonth;
 let backend = null, user = null, store = null;
 let generation = 0, busy = false, identity;
 let kalshiKey = null, kalshiKeyId = '', syncController = null;
+let kalshiConnected = false;
+
+function updateSyncButton() {
+  const connected = kalshiConnected || record.filename.startsWith('Kalshi API');
+  el('connectKalshiBtn').hidden = connected;
+  el('refreshKalshiBtn').hidden = !connected;
+  el('refreshKalshiBtn').textContent = syncController ? 'Syncing…' : 'Sync Kalshi';
+}
+
+function openKalshiPanel() {
+  el('kalshiPanel').hidden = false;
+  el('connectKalshiBtn').setAttribute('aria-expanded', 'true');
+  if (!kalshiKey) el('kalshiKeyId').focus();
+}
 
 function forgetKalshi() {
   syncController?.abort();
   kalshiKey = null;
   kalshiKeyId = '';
+  kalshiConnected = false;
   el('kalshiPrivateKey').value = '';
   el('kalshiPrivateKey').required = true;
   el('kalshiKeyId').value = '';
   el('kalshiStatus').textContent = '';
   el('kalshiDiagnostics').hidden = true;
   el('kalshiDiagnosticText').value = '';
+  updateSyncButton();
 }
 
 function status(message, error = false) {
   el('status').textContent = message;
   el('status').className = `status${error ? ' neg' : ''}`;
+  el('accountStatus').hidden = !error;
 }
 
 function setBusy(value) {
   busy = value;
-  for (const id of ['csvFile', 'resetBtn', 'saveBtn', 'signOutBtn', 'kalshiSyncBtn', 'kalshiKeyId', 'kalshiPrivateKey', 'kalshiDisconnectBtn']) {
+  for (const id of ['csvFile', 'resetBtn', 'saveBtn', 'signOutBtn', 'kalshiSyncBtn', 'refreshKalshiBtn', 'kalshiKeyId', 'kalshiPrivateKey', 'kalshiDisconnectBtn']) {
     el(id).disabled = value;
   }
-  el('uploadLabel').classList.toggle('disabled', value);
+  updateSyncButton();
 }
 
 function render(resetMonth = false) {
@@ -56,9 +75,7 @@ function render(resetMonth = false) {
   renderStats(monthlyTrades(datedTrades, currentMonth));
   renderTable(entries, countsByDate);
   renderChart(entries);
-  el('fileInfo').textContent = record.filename
-    ? `${record.filename} · ${trades.length.toLocaleString()} closed trades${skipped ? ` · ${skipped} invalid rows skipped` : ''}`
-    : 'No data imported. Connect Kalshi or choose a CSV to get started.';
+  updateSyncButton();
 }
 
 function applyRecord(next) {
@@ -87,6 +104,7 @@ async function save() {
 
 async function switchUser(nextUser, force = false) {
   if (!nextUser) {
+    profile.hide();
     forgetKalshi();
     ++generation;
     setBusy(true);
@@ -106,9 +124,7 @@ async function switchUser(nextUser, force = false) {
   el('reloadBtn').hidden = true;
   el('csvFile').value = '';
   applyRecord(null); // Never leave a previous user's CSV visible while loading.
-  el('accountInfo').textContent = `Signed in as ${user.email}`;
-  el('signOutBtn').hidden = !user;
-  el('signInLink').hidden = !!user;
+  profile.show();
   status('Loading saved data…');
   try {
     store = createAccountStore(backend, user.id);
@@ -133,6 +149,18 @@ el('connectKalshiBtn').addEventListener('click', () => {
   panel.hidden = !panel.hidden;
   el('connectKalshiBtn').setAttribute('aria-expanded', String(!panel.hidden));
   if (!panel.hidden) el('kalshiKeyId').focus();
+});
+el('refreshKalshiBtn').addEventListener('click', () => {
+  if (busy) return;
+  if (kalshiKey) el('kalshiForm').requestSubmit();
+  else {
+    openKalshiPanel();
+    el('kalshiStatus').textContent = 'Enter your Kalshi credentials to sync again. Your private key is not saved between visits.';
+  }
+});
+el('manageKalshiBtn').addEventListener('click', () => {
+  el('profileBtn').click();
+  openKalshiPanel();
 });
 el('kalshiDisconnectBtn').addEventListener('click', () => {
   forgetKalshi();
@@ -177,9 +205,15 @@ el('kalshiForm').addEventListener('submit', async event => {
     applyRecord({ csv, filename: `Kalshi API · FIFO estimate · synced ${new Date().toISOString()}`, timeZone: record.timeZone });
     status('Saving Kalshi history…');
     await save();
-    if (version === generation) el('kalshiStatus').textContent = 'Sync complete. Select Sync Kalshi again to refresh. Credentials remain only in this tab.';
+    if (version === generation) {
+      kalshiConnected = true;
+      el('kalshiStatus').textContent = 'Sync complete.';
+      el('kalshiPanel').hidden = true;
+      el('connectKalshiBtn').setAttribute('aria-expanded', 'false');
+    }
   } catch (error) {
     if (version === generation) {
+      openKalshiPanel();
       el('kalshiStatus').textContent = `Could not sync: ${error.message}`;
       if (error.diagnostic) {
         el('kalshiDiagnosticText').value = JSON.stringify(error.diagnostic, null, 2);

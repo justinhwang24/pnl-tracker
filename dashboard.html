@@ -7,17 +7,17 @@
 <link rel="stylesheet" href="./styles/main.css">
 </head>
 <body>
-<header class="site-header"><a class="brand" href="./index.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./index.html">Home</a><a href="./dashboard.html" aria-current="page">Dashboard</a><a href="./settings.html">Settings</a><a class="btn" id="signInLink" href="./auth.html">Sign in</a><button class="btn" id="signOutBtn" hidden>Sign out</button></nav></header>
+<header class="site-header"><a class="brand" href="./dashboard.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard.html" aria-current="page">Dashboard</a><div class="profile" id="profile" hidden><button class="btn profile-button" id="profileBtn" type="button" aria-expanded="false" aria-controls="profileDropdown">Profile <span aria-hidden="true">⌄</span></button><div class="profile-dropdown" id="profileDropdown" hidden><button id="manageKalshiBtn" type="button">Kalshi connection</button><a href="./settings.html">Settings</a><button id="signOutBtn" type="button">Sign Out</button></div></div></nav></header>
 <section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth.html">Go to sign in</a></section>
 <main class="wrap" id="dashboard" hidden>
   <div class="top">
     <div>
       <div class="eyebrow">YOUR TRADING WORKSPACE</div><h1>Performance overview</h1>
-      <div class="subtitle">Sync your Kalshi account or upload a CSV to view realized P&amp;L after fees.</div>
+      <div class="subtitle">Your realized P&amp;L after fees.</div>
     </div>
     <div class="upload">
       <button class="btn" id="connectKalshiBtn" aria-expanded="false" aria-controls="kalshiPanel">Connect Kalshi</button>
-      <label class="file-label" id="uploadLabel" for="csvFile">Upload Kalshi CSV</label>
+      <button class="btn" id="refreshKalshiBtn" type="button" hidden disabled>Sync Kalshi</button>
       <input id="csvFile" type="file" accept=".csv,.txt" disabled>
       <button class="btn" id="resetBtn">Clear data</button>
     </div>
@@ -43,9 +43,7 @@
     </form>
   </section>
 
-  <section class="settings" aria-label="Upload status">
-    <div class="workspace-meta"><span id="accountInfo">Loading…</span></div>
-    <p id="fileInfo" class="hint"></p>
+  <section id="accountStatus" aria-label="Account status" hidden>
     <div class="account-row">
       <p id="status" class="status" role="status" aria-live="polite"></p>
       <button class="btn" id="saveBtn" hidden>Retry save</button>
@@ -74,9 +72,6 @@
       </div>
       <div class="weekdays" id="weekdays"></div>
       <div class="calendar" id="calendar"></div>
-      <div class="foot">
-        Green = positive realized P&amp;L. Red = negative. Days with no closed trades show a dash. Trade counts represent closes, not contract quantities.
-      </div>
     </div>
 
     <div class="side">

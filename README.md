@@ -16,6 +16,13 @@ data. Imports replace the previous dataset rather than appending to it.
 - Clear data deletes the account upload. Signing out preserves it and returns
   to login. Legacy guest data is no longer loaded by the dashboard.
 
+The dashboard uses a **Profile** dropdown for Settings, Sign Out, and Kalshi
+connection controls. Signed-in homepage visitors are redirected to the dashboard.
+Routine account/import summaries and the CSV upload button are hidden; existing
+CSV datasets still restore. Sync reuses the in-memory key while the page stays
+open and requests credentials again after reload or navigation. Save/load errors
+and retry actions remain visible.
+
 ## Local development
 
 Requires Node.js 22+ and Python 3.
@@ -66,7 +73,8 @@ failed imports keep the previous dataset.
 
 ## Kalshi API sync
 
-The dashboard offers **Connect Kalshi** alongside CSV upload. Enter your own
+The dashboard offers **Connect Kalshi**, switching to a top-level **Sync Kalshi**
+button after an import. Enter your own
 API key ID and RSA private key from [Kalshi profile settings](https://kalshi.com/account/profile),
 then select **Sync Kalshi**. Prefer read-only permissions. The app accepts both
 PKCS#1 (`RSA PRIVATE KEY`) and PKCS#8 (`PRIVATE KEY`) PEM keys.
@@ -93,7 +101,7 @@ It rejects unauthenticated requests before contacting Kalshi. `SUPABASE_URL` and
 `SUPABASE_ANON_KEY` are supplied by the Supabase runtime; no Kalshi secrets or new
 database tables are needed. Then build/publish the frontend using the existing
 Pages workflow. Deploying Pages alone does **not** deploy the function. Until it
-is deployed, sync displays an availability error and CSV upload still works.
+is deployed, sync displays an availability error. Existing saved data remains available.
 
 ### Import behavior and limitations
 

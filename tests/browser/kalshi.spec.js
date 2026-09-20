@@ -32,7 +32,8 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
   await expect(page.locator('#monthPnl')).toHaveText('+$3.50');
   await expect(page.locator('#tradeCount')).toHaveText('1');
   await expect(page.locator('#kalshiPrivateKey')).toHaveValue('');
-  await expect(page.locator('#fileInfo')).toContainText('FIFO estimate');
+  await expect(page.locator('#fileInfo')).toHaveCount(0);
+  await expect(page.locator('#refreshKalshiBtn')).toBeVisible();
   expect(JSON.stringify([...rows.values()])).not.toContain('PRIVATE KEY');
   const stored = await page.evaluate(() => JSON.stringify([localStorage, sessionStorage]));
   expect(stored).not.toContain('PRIVATE KEY');
@@ -40,6 +41,8 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
   await expect(page.locator('#kalshiStatus')).toContainText('Sync complete');
   await expect(page.locator('#tradeCount')).toHaveText('1');
+  await page.locator('#profileBtn').click();
+  await page.getByRole('button', { name: 'Kalshi connection', exact: true }).click();
   await page.getByRole('button', { name: 'Forget credentials' }).click();
   await expect(page.locator('#kalshiKeyId')).toHaveValue('');
   await expect(page.locator('#monthPnl')).toHaveText('+$3.50');

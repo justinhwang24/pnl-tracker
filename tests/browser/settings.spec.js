@@ -9,6 +9,7 @@ test('settings persist and control calendar precision, trade counts, and every w
   await expect(page.locator('#timeZone')).toHaveCount(0);
   await expect(page.locator('[data-date="2026-01-01"] .pnl')).toHaveText('+$16');
   await expect(page.locator('.trade-count')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Profile', exact: false }).click();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.locator('#timeZone')).toHaveValue('UTC');
   await page.locator('#showTrades').uncheck();
@@ -26,7 +27,8 @@ test('settings persist and control calendar precision, trade counts, and every w
   await expect(page.locator('#monthPnl')).toHaveText('+$15.75');
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   for (let start = 0; start < 7; start++) {
-    await page.getByRole('link', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'Profile', exact: false }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await page.locator('#weekStart').selectOption(String(start));
     await page.locator('#saveSettings').click();
     await expect(page.locator('#settingsStatus')).toContainText('Settings saved');

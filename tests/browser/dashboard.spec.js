@@ -78,6 +78,7 @@ test('mobile layout fits the viewport', async ({ page }) => {
 });
 
 async function changeTimeZone(page, zone) {
+  await page.getByRole('button', { name: 'Profile', exact: false }).click();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.locator('#timeZone').selectOption(zone);
   await page.locator('#saveSettings').click();

@@ -40,7 +40,7 @@ test('canceled Google sign-in returns to login with a retry message', async ({ p
 test('account upload restores, replaces, survives reload, clears, and signs out to login', async ({ page }) => {
   const { rows } = await setup(page);
   await page.goto('/dashboard.html');
-  await expect(page.locator('#accountInfo')).toHaveText('Signed in as test@example.com');
+  await expect(page.locator('#profileBtn')).toBeVisible();
   await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
   await page.locator('#csvFile').setInputFiles({ name: 'replacement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv.replace(',15', ',20')) });
   await expect(page.locator('#status')).toHaveText('Saved to your account.');
@@ -52,6 +52,7 @@ test('account upload restores, replaces, survives reload, clears, and signs out 
   expect(rows.has(id)).toBe(false);
   await page.locator('#csvFile').setInputFiles({ name: 'again.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
   await expect(page.locator('#status')).toHaveText('Saved to your account.');
+  await page.locator('#profileBtn').click();
   await page.locator('#signOutBtn').click();
   await expect(page).toHaveURL(/auth.html$/);
   await expect(page.locator('#monthPnl')).toHaveCount(0);
@@ -85,7 +86,7 @@ test('email callback establishes a session and restores the dashboard', async ({
   await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
   await expect(page).toHaveURL(/dashboard.html#?$/);
   await page.reload();
-  await expect(page.locator('#accountInfo')).toContainText('test@example.com');
+  await expect(page.locator('#profileBtn')).toBeVisible();
 });
 
 test('expired email links allow requesting a fresh link', async ({ page }) => {

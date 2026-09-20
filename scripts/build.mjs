@@ -14,7 +14,7 @@ if (key.startsWith('eyJ')) {
 await rm('dist', { recursive: true, force: true });
 await mkdir('dist/assets', { recursive: true });
 await build({
-  entryPoints: ['src/app.js', 'src/auth.js', 'src/settings.js'], bundle: true, format: 'esm', target: 'es2022',
+  entryPoints: ['src/app.js', 'src/auth.js', 'src/settings.js', 'src/home.js'], bundle: true, format: 'esm', target: 'es2022',
   outdir: 'dist/assets', minify: true,
   define: { __SUPABASE_URL__: JSON.stringify(url), __SUPABASE_PUBLISHABLE_KEY__: JSON.stringify(key) },
 });
