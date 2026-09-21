@@ -1,11 +1,12 @@
 import { build } from 'esbuild';
 import { cp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { loadEnvFile } from 'node:process';
 
-const defaults = JSON.parse(await readFile('public-config.json', 'utf8'));
-const hasOverride = Boolean(process.env.SUPABASE_URL || process.env.SUPABASE_PUBLISHABLE_KEY);
-const url = hasOverride ? process.env.SUPABASE_URL || '' : defaults.supabaseUrl;
-const key = hasOverride ? process.env.SUPABASE_PUBLISHABLE_KEY || '' : defaults.supabasePublishableKey;
-if (Boolean(url) !== Boolean(key)) throw new Error('Set both SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY, or neither for guest mode.');
+// Explicit shell/CI variables take precedence over the local, gitignored file.
+try { loadEnvFile('.env'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+const url = process.env.SUPABASE_URL?.trim() || '';
+const key = process.env.SUPABASE_PUBLISHABLE_KEY?.trim() || '';
+if (!url || !key) throw new Error('Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env or the build environment.');
 if (key.startsWith('sb_secret_')) throw new Error('Use a publishable key, never a Supabase secret key.');
 if (key.startsWith('eyJ')) {
   const payload = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString());
@@ -29,4 +30,4 @@ for (const route of ['dashboard', 'auth', 'settings']) {
   await writeFile(`dist/${route}/index.html`, html.replace('<base href="./">', '<base href="../">'));
 }
 await writeFile('dist/.nojekyll', '');
-console.log(`Built dist/ (${url ? 'accounts enabled' : 'guest mode'}).`);
+console.log('Built dist/ (accounts enabled).');

@@ -5,10 +5,16 @@ import { maxCsvBytes } from './config.js';
 import { createAccountStore } from './storage.js';
 import { calendarPreferences } from './preferences.js';
 import { timeZones, dateFormatter } from './timezone.js';
+import { loadConnection, saveConnection, deleteConnection } from './kalshi-connection.js';
 
 const el = id => document.getElementById(id);
 const profile = initializeProfile();
 let backend, user, kalshiKey, kalshiKeyId = '', syncController;
+function showConnection(connected) {
+  el('kalshiTitle').textContent = connected ? 'Kalshi API connected' : 'Connect Kalshi API';
+  el('kalshiCredentials').hidden = connected;
+  el('kalshiSyncBtn').textContent = connected ? 'Refresh Kalshi' : 'Connect Kalshi';
+}
 function setSyncBusy(value) {
   for (const id of ['kalshiKeyId', 'kalshiPrivateKey', 'kalshiSyncBtn', 'kalshiDisconnectBtn', 'signOutBtn']) el(id).disabled = value;
 }
@@ -39,6 +45,13 @@ async function initialize() {
     const { data, error } = await backend.auth.getUser();
     if (error || !data.user) { login(); return; }
     user = data.user;
+    const connection = await loadConnection(user.id);
+    if (connection) {
+      kalshiKey = connection.key; kalshiKeyId = connection.keyId;
+      el('kalshiKeyId').value = kalshiKeyId;
+      el('kalshiPrivateKey').required = false;
+    }
+    showConnection(Boolean(connection));
     profile.show();
     backend.auth.onAuthStateChange((_event, session) => {
       if (!session || session.user.id !== user.id) login();
@@ -87,9 +100,13 @@ el('settingsForm').addEventListener('submit', async event => {
 });
 initialize();
 
-el('kalshiDisconnectBtn').addEventListener('click', () => {
-  forgetKalshi();
-  el('kalshiStatus').textContent = 'Credentials forgotten. Imported data remains saved to your account.';
+el('kalshiDisconnectBtn').addEventListener('click', async () => {
+  try {
+    await deleteConnection(user.id);
+    forgetKalshi();
+    showConnection(false);
+    el('kalshiStatus').textContent = 'Disconnected. Imported data remains saved to your account.';
+  } catch (error) { el('kalshiStatus').textContent = error.message; }
 });
 el('copyKalshiDiagnostics').addEventListener('click', async () => {
   const field = el('kalshiDiagnosticText');
@@ -120,11 +137,12 @@ el('kalshiForm').addEventListener('submit', async event => {
     kalshiKey = key; kalshiKeyId = keyId;
     el('kalshiPrivateKey').value = '';
     el('kalshiPrivateKey').required = false;
-    const csv = await fetchKalshiHistory(backend, keyId, key, message => { el('kalshiStatus').textContent = message; }, controller.signal);
-    if (new Blob([csv]).size > maxCsvBytes) throw new Error('Imported history exceeds the 2 MB account limit.');
     const store = createAccountStore(backend, user.id);
     const previous = await store.load();
+    const csv = await fetchKalshiHistory(backend, keyId, key, message => { el('kalshiStatus').textContent = message; }, controller.signal, previous?.csv);
+    if (new Blob([csv]).size > maxCsvBytes) throw new Error('Imported history exceeds the 2 MB account limit.');
     await store.save({ csv, filename: `Kalshi API · FIFO estimate · synced ${new Date().toISOString()}`, timeZone: calendarPreferences(user, previous?.timeZone).timeZone });
+    await saveConnection(user.id, keyId, key);
     window.location.assign(new URL('./dashboard/', document.baseURI));
   } catch (error) {
     el('kalshiStatus').textContent = `Could not sync: ${error.message}`;
@@ -145,6 +163,7 @@ el('signOutBtn').addEventListener('click', async () => {
   try {
     const { error } = await backend.auth.signOut({ scope: 'local' });
     if (error) throw error;
+    await deleteConnection(user.id);
     login();
   } catch (error) {
     el('settingsStatus').textContent = `Could not sign out: ${error.message}`;

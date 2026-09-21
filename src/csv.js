@@ -35,6 +35,22 @@ export function parseKalshiCSV(text) {
   if (iPnl < 0 || iClose < 0) throw new Error("CSV must contain realized_pnl_with_fees_dollars and close_timestamp.");
 
   const trades = [];
+  let snapshot = null;
+  const issues = {};
+  try {
+    const savedIssues = JSON.parse(rows[1]?.[headers.indexOf('sync_issues')] || '{}');
+    for (const key of ['balance', 'markets']) {
+      if (typeof savedIssues?.[key] === 'string') issues[key] = savedIssues[key].slice(0, 1000);
+    }
+  } catch { /* Optional import warnings may be absent in older CSVs. */ }
+  const snapshotRaw = rows[1]?.[headers.indexOf('account_snapshot')];
+  if (snapshotRaw) {
+    try {
+      const value = JSON.parse(snapshotRaw);
+      if (['cash', 'positions', 'fetchedAt', 'historyCutoff'].every(key => Number.isFinite(value[key]) && value[key] >= 0) &&
+          value.fetchedAt > 0 && value.historyCutoff > 0 && value.historyCutoff <= value.fetchedAt) snapshot = value;
+    } catch { /* Optional metadata never invalidates trade rows. */ }
+  }
   let skipped = 0;
   for (const row of rows.slice(1)) {
     const timestamp = row[iClose]?.trim() || "";
@@ -47,10 +63,23 @@ export function parseKalshiCSV(text) {
       skipped++;
       continue;
     }
-    trades.push({ closedAt, pnl });
+    const trade = { closedAt, pnl };
+    for (const [column, field] of [['entry_cost_dollars', 'cost'], ['quantity', 'quantity']]) {
+      const raw = row[headers.indexOf(column)]?.trim();
+      if (raw && Number.isFinite(Number(raw)) && Number(raw) > 0) trade[field] = Number(raw);
+    }
+    const ticker = row[headers.indexOf('ticker')]?.trim();
+    if (ticker) trade.ticker = ticker;
+    const title = row[headers.indexOf('market_title')]?.trim();
+    if (title) trade.title = title;
+    const side = row[headers.indexOf('side')]?.trim().toLowerCase();
+    if (['yes', 'no'].includes(side)) trade.side = side;
+    const closeType = row[headers.indexOf('close_type')]?.trim();
+    if (['sale', 'settlement'].includes(closeType)) trade.closeType = closeType;
+    trades.push(trade);
   }
   if (!trades.length) throw new Error("CSV has no valid closed trades with P&L and timezone-aware timestamps.");
-  return { trades, skipped };
+  return { trades, skipped, snapshot, issues };
 }
 
 // Convenience helper for consumers that only need daily P&L.

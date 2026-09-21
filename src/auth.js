@@ -65,14 +65,23 @@ googleButton.addEventListener('click', async () => {
   button.disabled = true;
   status.textContent = 'Connecting to Google…';
   try {
-    // Keep a disabled provider from sending visitors to a raw Supabase error page.
-    const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {
-      headers: { apikey: supabasePublishableKey },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) throw new Error('Could not connect to sign-in. Please try again.');
-    const settings = await response.json();
-    if (!settings.external?.google) throw new Error('Google sign-in is not available yet. Please use an email link for now.');
+    // A settings probe is only advisory. Some browsers, privacy extensions,
+    // and proxies block it even though the OAuth authorize endpoint works.
+    try {
+      const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+        headers: { apikey: supabasePublishableKey },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.ok) {
+        const settings = await response.json();
+        if (settings.external && settings.external.google === false) {
+          throw new Error('Google sign-in is not available yet. Please use an email link for now.');
+        }
+      }
+    } catch (probeError) {
+      if (probeError.message.includes('not available yet')) throw probeError;
+      // Continue to OAuth; signInWithOAuth gives the authoritative provider error.
+    }
     const { data, error } = await backend.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: dashboard, skipBrowserRedirect: true },

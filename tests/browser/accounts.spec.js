@@ -30,6 +30,15 @@ test('disabled Google provider leaves email login available', async ({ page }) =
   await expect(page).toHaveURL(/(?:auth\.html|auth\/)$/);
 });
 
+test('Google OAuth still starts when the optional settings probe cannot fetch', async ({ page }) => {
+  await setup(page, false);
+  await page.route(`${mockUrl}/auth/v1/settings`, route => route.abort('failed'));
+  await page.route(`${mockUrl}/auth/v1/authorize**`, async route => route.fulfill({ contentType: 'text/html', body: '<p>OAuth provider</p>' }));
+  await page.goto('/auth.html');
+  await page.getByRole('button', { name: 'Continue with Google' }).click();
+  await expect(page).toHaveURL(/authorize/);
+});
+
 test('canceled Google sign-in returns to login with a retry message', async ({ page }) => {
   await setup(page, false);
   await page.goto('/dashboard.html#error=access_denied&error_description=User+canceled');

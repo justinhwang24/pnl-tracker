@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, verify, constants } from 'node:crypto';
-import { importKalshiKey, signedHeaders, historyToCSV, fetchKalshiHistory } from '../src/kalshi.js';
+import { importKalshiKey, signedHeaders, historyToCSV, fetchKalshiHistory, balanceSnapshot, kalshiRequestError } from '../src/kalshi.js';
 import { parseKalshiCSV } from '../src/csv.js';
 import { createHandler } from '../supabase/functions/kalshi-read/handler.js';
 
@@ -64,11 +64,64 @@ test('sync reads every page of both fill tiers and settlements', async () => {
     return { data: { settlements: [] } };
   } } };
   assert.deepEqual(parseKalshiCSV(await fetchKalshiHistory(client, 'id', key)).trades.map(x => x.pnl), [.3]);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.filter(call => ['/historical/fills', '/portfolio/fills', '/portfolio/settlements'].includes(call.path)).length, 4);
   assert.equal(calls[1].cursor, 'next');
   assert.ok(calls.every(x => !('privateKey' in x) && x.signature && x.maxTs === calls[0].maxTs));
   client.functions.invoke = async () => ({ data: { fills: [], cursor: 'repeat' } });
   await assert.rejects(fetchKalshiHistory(client, 'id', key), /pagination/);
+});
+
+test('balance units preserve dollar precision and reject missing values', () => {
+  assert.equal(balanceSnapshot({ balance: 12345, portfolio_value: 6789 }, 100).cash, 123.45);
+  const snapshot = balanceSnapshot({ balance_dollars: '123.4567', portfolio_value: 6789 }, 100);
+  assert.equal(snapshot.cash, 123.4567);
+  assert.equal(snapshot.positions, 67.89);
+  assert.equal(snapshot.historyCutoff, 100000);
+  assert.throws(() => balanceSnapshot({ balance: 0 }, 100), /portfolio value/);
+  assert.throws(() => balanceSnapshot({ balance: -1, portfolio_value: 0 }, 100), /Invalid/);
+});
+
+test('additional-read failures explain stale deployments and permission failures', async () => {
+  const error = await kalshiRequestError('/portfolio/balance', null, {
+    context: Response.json({ error: 'Invalid Kalshi request. Check your key ID and device clock.' }, { status: 400 }),
+  });
+  assert.match(error.message, /deployed kalshi-read function may be outdated/);
+  assert.match(error.message, /\/portfolio\/balance/);
+  const denied = await kalshiRequestError('/markets', null, {
+    context: Response.json({ error: 'Kalshi rejected the credentials. Check read permissions.' }, { status: 502 }),
+  });
+  assert.match(denied.message, /Market names: Kalshi rejected the credentials/);
+});
+
+test('sync caches readable historical market names and snapshots in the saved CSV', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const key = await importKalshiKey(privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  const paths = [];
+  const title = 'Will the president say "tariffs", today?';
+  const client = { functions: { invoke: async (_name, { body }) => {
+    paths.push(body.path);
+    const responses = {
+      '/historical/fills': { fills: [fill('a', 'yes', 1, .4, 0), fill('b', 'no', 1, .7, 0, 2)] },
+      '/portfolio/fills': { fills: [] }, '/portfolio/settlements': { settlements: [] },
+      '/portfolio/balance': { balance: 10000, portfolio_value: 5000 },
+      '/markets': { markets: [] }, '/historical/markets': { markets: [{ ticker: 'A', title }] },
+    };
+    return { data: responses[body.path] };
+  } } };
+  const csv = await fetchKalshiHistory(client, 'id', key);
+  const parsed = parseKalshiCSV(csv);
+  assert.equal(parsed.trades[0].title, title);
+  assert.equal(parsed.snapshot.cash + parsed.snapshot.positions, 150);
+  assert.equal(parsed.trades[0].side, 'yes');
+  paths.length = 0;
+  await fetchKalshiHistory(client, 'id', key, undefined, undefined, csv);
+  assert.ok(!paths.some(path => path.includes('markets')));
+  const invoke = client.functions.invoke;
+  client.functions.invoke = (...args) => args[1].body.path === '/portfolio/balance' ? { error: new Error('Unavailable') } : invoke(...args);
+  const fallback = parseKalshiCSV(await fetchKalshiHistory(client, 'id', key));
+  assert.equal(fallback.snapshot, null);
+  assert.match(fallback.issues.balance, /Could not reach/);
+  assert.equal(fallback.trades[0].pnl, .3);
 });
 
 const request = (body, authorization = 'Bearer token') => new Request('https://example.com', { method: 'POST', headers: { authorization }, body: JSON.stringify(body) });
@@ -101,6 +154,25 @@ test('proxy rejects expired sessions and sanitizes upstream errors', async () =>
   assert.match((await response.json()).error, /rejected the credentials/);
   const expired = createHandler({ supabaseUrl: 'https://test.supabase.co', supabaseKey: 'anon', fetcher: async () => new Response('', { status: 401 }) });
   assert.equal((await expired(request(validBody()))).status, 401);
+});
+
+test('proxy scopes balance to primary account and validates market queries', async () => {
+  const urls = [];
+  const handler = createHandler({ supabaseUrl: 'https://test.supabase.co', supabaseKey: 'anon', fetcher: async url => {
+    if (String(url).includes('/auth/')) return Response.json({ id: 'user' });
+    urls.push(new URL(url));
+    return Response.json({});
+  } });
+  assert.equal((await handler(request({ ...validBody(), path: '/portfolio/balance' }))).status, 200);
+  assert.equal(urls.at(-1).search, '?subaccount=0');
+  for (const path of ['/markets', '/historical/markets']) {
+    assert.equal((await handler(request({ ...validBody(), path, tickers: ['KXTRUMP-ABC', 'B'] }))).status, 200);
+    assert.equal(urls.at(-1).searchParams.get('tickers'), 'KXTRUMP-ABC,B');
+    assert.equal(urls.at(-1).searchParams.has('max_ts'), false);
+    assert.equal(urls.at(-1).searchParams.has('subaccount'), false);
+    assert.equal((await handler(request({ ...validBody(), path, tickers: ['../portfolio/orders'] }))).status, 400);
+    assert.equal((await handler(request({ ...validBody(), path, tickers: [] }))).status, 400);
+  }
 });
 
 test('gross fractional settlement legs reconcile with net exposure without double counting collateral', () => {

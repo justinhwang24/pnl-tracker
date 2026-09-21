@@ -3,7 +3,7 @@
 <head><base href="./"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Settings · Closebook</title><link rel="stylesheet" href="./styles/main.css"></head>
 <body>
 <header class="site-header"><a class="brand" href="./dashboard/"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard/">Dashboard</a><div class="profile" id="profile" hidden><button class="btn profile-button" id="profileBtn" type="button" aria-expanded="false" aria-controls="profileDropdown">Profile <svg class="profile-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 6 4.5 4 4.5-4"/></svg></button><div class="profile-dropdown" id="profileDropdown" hidden><a href="./settings/">Settings</a><button id="signOutBtn" type="button">Sign Out</button></div></div></nav></header>
-<section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth/">Go to sign in</a></section>
+<section id="authGate" class="wrap loading-shell" aria-label="Loading settings"><p id="gateStatus" role="status"></p><div class="skeleton skeleton-title" aria-hidden="true"></div><div class="skeleton skeleton-calendar" aria-hidden="true"></div></section>
 <main class="preferences-page wrap" id="settingsPage" hidden>
   <div class="eyebrow">YOUR WORKSPACE, YOUR WAY</div><h1>Settings</h1><p class="subtitle">Choose how your trading performance is displayed.</p>
   <form id="settingsForm" class="card preferences-card"><fieldset id="settingsFields"><legend>Calendar preferences</legend>
@@ -15,15 +15,17 @@
   </fieldset><p id="settingsStatus" class="status" role="status" aria-live="polite"></p></form>
   <section class="card kalshi-panel" id="kalshiPanel" aria-labelledby="kalshiTitle">
     <h2 id="kalshiTitle">Kalshi connection</h2>
-    <p class="hint">Create a key in <a href="https://kalshi.com/account/profile" target="_blank" rel="noopener noreferrer">Kalshi’s API settings</a>, then enter its ID and private key. Choose read-only permissions when available.</p>
     <form id="kalshiForm">
+      <div id="kalshiCredentials">
+      <p class="hint">Create a key in <a href="https://kalshi.com/account/profile" target="_blank" rel="noopener noreferrer">Kalshi’s API settings</a>, then enter its ID and private key. Choose read-only permissions when available.</p>
       <label for="kalshiKeyId">API key ID</label>
       <input id="kalshiKeyId" type="text" autocomplete="off" spellcheck="false" maxlength="100" required>
       <label for="kalshiPrivateKey">Private key</label>
       <textarea id="kalshiPrivateKey" rows="4" autocomplete="off" spellcheck="false" maxlength="20000" placeholder="-----BEGIN RSA PRIVATE KEY-----" required></textarea>
-      <p class="hint">Your private key stays in this browser tab and is never saved. Only signed read requests are sent. Re-enter credentials after leaving this page.</p>
+      </div>
+      <p class="hint">Your signing key is stored in this browser in a non-exportable form. The private key is never sent to our server. Disconnect or sign out to remove it.</p>
       <p class="hint">Sync imports primary-account history and replaces the displayed dataset. P&amp;L is reconstructed using FIFO and trade fees; figures and close counts may differ from Kalshi’s CSV report.</p>
-      <div class="account-row"><button class="btn primary" id="kalshiSyncBtn" type="submit" disabled>Sync Kalshi</button><button class="btn" id="kalshiDisconnectBtn" type="button" disabled>Forget credentials</button></div>
+      <div class="account-row"><button class="btn primary" id="kalshiSyncBtn" type="submit" disabled>Connect Kalshi</button><button class="btn" id="kalshiDisconnectBtn" type="button" disabled>Disconnect Kalshi</button></div>
       <p class="status" id="kalshiStatus" role="status" aria-live="polite"></p>
       <div id="kalshiDiagnostics" hidden>
         <label for="kalshiDiagnosticText">Sync diagnostics — no credentials or market names</label>

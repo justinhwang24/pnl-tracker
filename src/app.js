@@ -15,14 +15,17 @@ import { renderChart } from './views/chart.js';
 
 const el = id => document.getElementById(id);
 const profile = initializeProfile();
-let trades = [], skipped = 0;
+let trades = [], skipped = 0, snapshot = null, syncIssues = {};
 let record = { csv: '', filename: '', timeZone: defaultTimeZone() };
 let currentMonth;
 let viewMode = 'month';
 let backend = null, user = null, store = null;
 let generation = 0, busy = false, identity;
+let connection;
+import { loadConnection, deleteConnection } from './kalshi-connection.js';
+import { fetchKalshiHistory } from './kalshi.js';
 function updateSyncButton() {
-  const connected = record.filename.startsWith('Kalshi API');
+  const connected = Boolean(connection);
   el('connectKalshiBtn').hidden = connected;
   el('refreshKalshiBtn').hidden = !connected;
 }
@@ -64,8 +67,8 @@ function render(resetMonth = false) {
     viewMode = 'month';
     render();
   });
-  else renderCalendar(pnlByDate, currentMonth, countsByDate, calendarPreferences(user, record.timeZone));
-  renderStats(periodTrades);
+  else renderCalendar(pnlByDate, currentMonth, countsByDate, { ...calendarPreferences(user, record.timeZone), trades: datedTrades });
+  renderStats(periodTrades, trades, snapshot, record.filename.startsWith('Kalshi API'), syncIssues);
   renderTable(entries, countsByDate);
   renderChart(entries, viewMode);
   updateSyncButton();
@@ -77,6 +80,8 @@ function applyRecord(next) {
   record = { ...nextRecord, timeZone: calendarPreferences(user, nextRecord.timeZone).timeZone };
   trades = parsed.trades;
   skipped = parsed.skipped;
+  snapshot = parsed.snapshot || null;
+  syncIssues = parsed.issues || {};
   render(true);
 }
 
@@ -119,6 +124,7 @@ async function switchUser(nextUser, force = false) {
   status('Loading saved data…');
   try {
     store = createAccountStore(backend, user.id);
+    connection = await loadConnection(user.id);
     const saved = await store.load();
     if (version !== generation) return;
     applyRecord(saved);
@@ -135,8 +141,23 @@ async function switchUser(nextUser, force = false) {
 render();
 setBusy(true);
 
-el('refreshKalshiBtn').addEventListener('click', () => {
-  if (!busy) window.location.assign(new URL('./settings/#kalshiPanel', document.baseURI));
+el('refreshKalshiBtn').addEventListener('click', async () => {
+  if (busy || !connection) return;
+  const version = generation;
+  setBusy(true);
+  el('refreshKalshiBtn').textContent = 'Refreshing…';
+  try {
+    const csv = await fetchKalshiHistory(backend, connection.keyId, connection.key, undefined, undefined, record.csv);
+    if (version !== generation) return;
+    if (new Blob([csv]).size > maxCsvBytes) throw new Error('Imported history exceeds the 2 MB account limit.');
+    applyRecord({ csv, filename: `Kalshi API · FIFO estimate · synced ${new Date().toISOString()}`, timeZone: record.timeZone });
+    await save();
+  } catch (error) {
+    if (version === generation) status(`Could not refresh Kalshi: ${error.message}`, true);
+  } finally {
+    el('refreshKalshiBtn').textContent = 'Refresh Kalshi';
+    if (version === generation) setBusy(false);
+  }
 });
 
 el('csvFile').addEventListener('change', async event => {
@@ -181,7 +202,7 @@ el('signOutBtn').addEventListener('click', async () => {
   el('signOutBtn').disabled = true;
   const { error } = await backend.auth.signOut({ scope: 'local' });
   if (error) { status(`Could not sign out: ${error.message}`, true); el('signOutBtn').disabled = false; }
-  else await switchUser(null);
+  else { await deleteConnection(user.id); await switchUser(null); }
 });
 
 async function initialize() {
@@ -204,9 +225,9 @@ async function initialize() {
       // Keep database requests outside the auth callback's lock.
       setTimeout(() => switchUser(session?.user || null), 0);
     });
+    await switchUser(data.user);
     el('authGate').hidden = true;
     el('dashboard').hidden = false;
-    await switchUser(data.user);
   } catch (error) {
     el('gateStatus').textContent = `Could not verify your session: ${error.message}. Reload to retry.`;
   }

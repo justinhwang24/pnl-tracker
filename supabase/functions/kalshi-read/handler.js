@@ -1,4 +1,5 @@
 const paths = new Set(['/portfolio/fills', '/historical/fills', '/portfolio/settlements']);
+const marketPaths = new Set(['/markets', '/historical/markets']);
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -33,18 +34,30 @@ export function createHandler({ supabaseUrl, supabaseKey, fetcher = fetch }) {
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
       let body;
       try { body = JSON.parse(new TextDecoder().decode(bytes)); } catch { return reply({ error: 'Invalid request.' }, 400); }
-      const { path, keyId, timestamp, signature, cursor = '', maxTs } = body || {};
-      if (!paths.has(path) || typeof keyId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(keyId) ||
+      const { path, keyId, timestamp, signature, cursor = '', maxTs, tickers } = body || {};
+      const isMarket = marketPaths.has(path);
+      if ((!paths.has(path) && !isMarket && path !== '/portfolio/balance') || typeof keyId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(keyId) ||
           typeof timestamp !== 'string' || !/^\d{13}$/.test(timestamp) || Math.abs(Date.now() - Number(timestamp)) > 60000 ||
           typeof signature !== 'string' || !/^[A-Za-z0-9+/=]{100,1500}$/.test(signature) ||
           typeof cursor !== 'string' || cursor.length > 4000 || !Number.isSafeInteger(maxTs) || maxTs < 0) {
         return reply({ error: 'Invalid Kalshi request. Check your key ID and device clock.' }, 400);
       }
+      if (isMarket && (!Array.isArray(tickers) || !tickers.length || tickers.length > 25 ||
+          tickers.some(ticker => typeof ticker !== 'string' || !/^[a-zA-Z0-9_.-]{1,200}$/.test(ticker)))) {
+        return reply({ error: 'Invalid market tickers.' }, 400);
+      }
       const url = new URL(`https://external-api.kalshi.com/trade-api/v2${path}`);
-      url.searchParams.set('limit', '1000');
-      url.searchParams.set('max_ts', String(maxTs));
-      if (path !== '/historical/fills') url.searchParams.set('subaccount', '0');
-      if (cursor) url.searchParams.set('cursor', cursor);
+      if (isMarket) {
+        url.searchParams.set('tickers', tickers.join(','));
+        url.searchParams.set('limit', '1000');
+      } else if (path === '/portfolio/balance') {
+        url.searchParams.set('subaccount', '0');
+      } else {
+        url.searchParams.set('limit', '1000');
+        url.searchParams.set('max_ts', String(maxTs));
+        if (path !== '/historical/fills') url.searchParams.set('subaccount', '0');
+      }
+      if (cursor && path !== '/portfolio/balance') url.searchParams.set('cursor', cursor);
       const upstream = await fetcher(url, {
         method: 'GET', redirect: 'error', signal: AbortSignal.timeout(20000),
         headers: { 'KALSHI-ACCESS-KEY': keyId, 'KALSHI-ACCESS-TIMESTAMP': timestamp, 'KALSHI-ACCESS-SIGNATURE': signature },

@@ -1,4 +1,6 @@
-// Keys are imported as non-extractable and are never sent to the backend or storage.
+import { parseCSV, parseKalshiCSV } from './csv.js';
+
+// Keys are imported as non-extractable and are never sent to the backend.
 function sequence(bytes) {
   const size = bytes.length;
   const length = size < 128 ? [size] : size < 256 ? [0x81, size] : [0x82, size >> 8, size & 255];
@@ -22,7 +24,21 @@ export async function signedHeaders(keyId, key, path, timestamp = String(Date.no
     new TextEncoder().encode(`${timestamp}GET${path.split('?')[0]}`));
   return { keyId, timestamp, signature: btoa(String.fromCharCode(...new Uint8Array(signature))) };
 }
-export async function fetchKalshiHistory(client, keyId, key, progress = () => {}, signal) {
+export async function kalshiRequestError(path, data, error) {
+  let body = data;
+  const response = error?.context;
+  if (response instanceof Response) {
+    try { body = await response.clone().json(); } catch { /* Use HTTP status below. */ }
+  }
+  const status = response?.status;
+  const label = path === '/portfolio/balance' ? 'Balance' : 'Market names';
+  if (status === 400 && body?.error === 'Invalid Kalshi request. Check your key ID and device clock.') {
+    return new Error(`${label}: the backend rejected ${path} (HTTP 400). The deployed kalshi-read function may be outdated; redeploy it with balance and market support.`);
+  }
+  const reason = typeof body?.error === 'string' ? body.error : status ? `Request failed (HTTP ${status}).` : 'Could not reach the Kalshi backend.';
+  return new Error(`${label}: ${reason}`);
+}
+export async function fetchKalshiHistory(client, keyId, key, progress = () => {}, signal, previousCSV = '') {
   const maxTs = Math.floor(Date.now() / 1000) - 1;
   async function pages(path, field) {
     const result = [], seen = new Set();
@@ -53,7 +69,65 @@ export async function fetchKalshiHistory(client, keyId, key, progress = () => {}
   const historical = await pages('/historical/fills', 'fills');
   const recent = await pages('/portfolio/fills', 'fills');
   const settlements = await pages('/portfolio/settlements', 'settlements');
-  return historyToCSV([...historical, ...recent], settlements);
+  const csv = historyToCSV([...historical, ...recent], settlements);
+  const trades = parseKalshiCSV(csv).trades;
+  const titles = new Map();
+  if (previousCSV) {
+    try {
+      for (const trade of parseKalshiCSV(previousCSV).trades) {
+        if (trade.ticker && trade.title) titles.set(trade.ticker, trade.title);
+      }
+    } catch { /* Invalid previous imports must not block a fresh import. */ }
+  }
+  async function read(path, extra = {}) {
+    signal?.throwIfAborted();
+    const headers = await signedHeaders(keyId, key, `/trade-api/v2${path}`);
+    const { data, error } = await client.functions.invoke('kalshi-read', { body: { path, maxTs, ...extra, ...headers }, signal });
+    if (error || data?.error) throw await kalshiRequestError(path, data, error);
+    return data;
+  }
+  progress('Reading balance and market names…');
+  const [balanceResult, titlesResult] = await Promise.allSettled([
+    read('/portfolio/balance').then(data => balanceSnapshot(data, maxTs)),
+    (async () => {
+      const missing = [...new Set(trades.map(trade => trade.ticker))].filter(ticker => !titles.has(ticker));
+      for (let i = 0; i < missing.length; i += 25) {
+        let batch = missing.slice(i, i + 25);
+        for (const path of ['/markets', '/historical/markets']) {
+          if (!batch.length) break;
+          const data = await read(path, { tickers: batch });
+          if (!Array.isArray(data?.markets)) throw new Error('Market names unavailable.');
+          for (const market of data.markets) {
+            if (batch.includes(market.ticker) && typeof market.title === 'string' && market.title.trim()) {
+              const subtitle = typeof market.yes_sub_title === 'string' ? market.yes_sub_title.trim() : '';
+              titles.set(market.ticker, market.title.trim() + (subtitle && !market.title.includes(subtitle) ? ` · ${subtitle}` : ''));
+            }
+          }
+          batch = batch.filter(ticker => !titles.has(ticker));
+        }
+      }
+    })(),
+  ]);
+  signal?.throwIfAborted();
+  // Optional enrichment cannot discard successfully reconstructed trade history.
+  const snapshot = balanceResult.status === 'fulfilled' ? balanceResult.value : null;
+  const issues = {};
+  if (balanceResult.status === 'rejected') issues.balance = balanceResult.reason.message;
+  if (titlesResult.status === 'rejected') issues.markets = titlesResult.reason.message;
+  else if (trades.some(trade => !titles.has(trade.ticker))) issues.markets = 'Kalshi did not return a readable name for some markets, including the archive lookup. Their tickers are shown instead.';
+  const rows = parseCSV(csv);
+  rows[0].push('market_title', 'account_snapshot', 'sync_issues');
+  for (let i = 1; i < rows.length; i++) {
+    rows[i].push(titles.get(rows[i][3]) || '', i === 1 && snapshot ? JSON.stringify(snapshot) : '', i === 1 ? JSON.stringify(issues) : '');
+  }
+  return rows.map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+}
+
+export function balanceSnapshot(data, historyCutoff) {
+  const cash = data?.balance_dollars != null ? number(data.balance_dollars, 'cash balance') : number(data?.balance, 'cash balance') / 100;
+  const positions = number(data?.portfolio_value, 'portfolio value') / 100;
+  if (cash < 0 || positions < 0) throw new Error('Invalid account balance.');
+  return { cash, positions, fetchedAt: Date.now(), historyCutoff: historyCutoff * 1000 };
 }
 
 function number(value, field) {
@@ -132,16 +206,18 @@ export function historyToCSV(fills, settlements) {
     const lots = positions.get(market) || [];
     positions.set(market, lots);
     if (event.kind === 'fill') {
-      let remaining = event.quantity, pnl = 0, closed = 0;
+      let remaining = event.quantity, pnl = 0, closed = 0, cost = 0;
+      const closedSide = lots[0]?.side;
       const feePerContract = event.fee / event.quantity;
       while (remaining > 1e-8 && lots.length && lots[0].side !== event.side) {
         const lot = lots[0], quantity = Math.min(remaining, lot.quantity);
         pnl += quantity * (1 - event.price - lot.price - lot.fee - feePerContract);
+        cost += quantity * (lot.price + lot.fee);
         closed += quantity; remaining -= quantity; lot.quantity -= quantity;
         if (lot.quantity < 1e-8) lots.shift();
       }
       if (closed) {
-        closes.push({ at: event.at, pnl });
+        closes.push({ at: event.at, pnl, cost, ticker: event.ticker, quantity: closed, side: closedSide, closeType: 'sale' });
         matched.set(market, (matched.get(market) || 0) + closed);
       }
       if (remaining > 1e-8) lots.push({ side: event.side, quantity: remaining, price: event.price, fee: feePerContract });
@@ -175,12 +251,13 @@ export function historyToCSV(fills, settlements) {
       }
       if (lots.length) {
         const cost = lots.reduce((sum, lot) => sum + lot.quantity * (lot.price + lot.fee), 0);
-        closes.push({ at: event.at, pnl: revenue - cost });
+        closes.push({ at: event.at, pnl: revenue - cost, cost, ticker: event.ticker, quantity: lots.reduce((sum, lot) => sum + lot.quantity, 0), side: lots[0].side, closeType: 'settlement' });
       }
       positions.set(market, []);
       matched.delete(market);
     }
   }
   if (!closes.length) throw new Error('No closed trades found in the primary account. Your existing data has been kept.');
-  return 'close_timestamp,realized_pnl_with_fees_dollars\n' + closes.map(row => `${new Date(row.at).toISOString()},${row.pnl.toFixed(8)}`).join('\n');
+  const quote = value => `"${String(value).replaceAll('"', '""')}"`;
+  return 'close_timestamp,realized_pnl_with_fees_dollars,entry_cost_dollars,ticker,quantity,side,close_type\n' + closes.map(row => `${new Date(row.at).toISOString()},${row.pnl.toFixed(8)},${row.cost.toFixed(8)},${quote(row.ticker)},${row.quantity},${row.side},${row.closeType}`).join('\n');
 }

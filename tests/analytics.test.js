@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseKalshiCSV } from '../src/csv.js';
-import { aggregateTrades, monthlyTrades, calculateStats } from '../src/analytics.js';
+import { aggregateTrades, monthlyTrades, calculateStats, accountEstimates } from '../src/analytics.js';
 
 const csv = rows => 'close_timestamp,realized_pnl_with_fees_dollars\n' + rows.join('\n');
 
@@ -35,8 +35,24 @@ test('import preserves zero trades and reports skipped invalid rows', () => {
 test('statistics use chronological closes, including breakeven in win rate', () => {
   const trades = [{ closedAt: 4, pnl: 0 }, { closedAt: 2, pnl: -8 }, { closedAt: 1, pnl: 10 }, { closedAt: 3, pnl: -4 }];
   assert.deepEqual(calculateStats(trades), {
-    total: -2, count: 4, winRate: 0.25, average: -0.5, profitFactor: 10 / 12, drawdown: 12,
+    total: -2, count: 4, winRate: 0.25, average: -0.5, profitFactor: 10 / 12, drawdown: 12, averageReturn: null,
   });
+});
+
+test('geometric average includes full losses while drawdown remains in dollars', () => {
+  const stats = calculateStats([{ closedAt: 1, pnl: 50, cost: 100 }, { closedAt: 2, pnl: -25, cost: 100 }]);
+  assert.ok(Math.abs(stats.averageReturn - (Math.sqrt(1.5 * 0.75) - 1)) < 1e-12);
+  assert.equal(stats.drawdown, 25);
+  assert.equal(calculateStats([{ closedAt: 1, pnl: -100, cost: 100 }]).averageReturn, -1);
+  assert.equal(calculateStats([{ closedAt: 1, pnl: -100, cost: 100 }]).drawdown, 100);
+  assert.equal(calculateStats([{ closedAt: 1, pnl: -101, cost: 100 }]).averageReturn, null);
+  assert.equal(calculateStats([{ closedAt: 1, pnl: 1, cost: 0 }]).averageReturn, null);
+  const simultaneous = calculateStats([{ closedAt: 1, pnl: -50, cost: 100 }, { closedAt: 1, pnl: 100, cost: 100 }]);
+  assert.equal(simultaneous.drawdown, 0);
+  assert.equal(simultaneous.averageReturn, 0);
+  const mixed = calculateStats([{ closedAt: 1, pnl: -10, cost: 10 }, { closedAt: 2, pnl: 100, cost: 200 }]);
+  assert.equal(mixed.averageReturn, -1);
+  assert.equal(mixed.drawdown, 10);
 });
 
 test('empty, all winning, all losing, flat, and simultaneous closes have defined statistics', () => {
@@ -46,4 +62,22 @@ test('empty, all winning, all losing, flat, and simultaneous closes have defined
   assert.equal(calculateStats([{ closedAt: 1, pnl: -2 }]).profitFactor, 0);
   assert.equal(calculateStats([{ closedAt: 1, pnl: 0 }]).profitFactor, null);
   assert.equal(calculateStats([{ closedAt: 1, pnl: -8 }, { closedAt: 1, pnl: 10 }]).drawdown, 0);
+});
+
+test('account estimates anchor historical periods to total equity, not just cash', () => {
+  const trades = [{ closedAt: 1, pnl: 100 }, { closedAt: 2, pnl: -50 }, { closedAt: 3, pnl: 150 }];
+  const snapshot = { cash: 700, positions: 500, historyCutoff: 4 };
+  const stats = accountEstimates(trades.slice(0, 2), trades, snapshot);
+  assert.ok(Math.abs(stats.periodReturn - .05) < 1e-12);
+  assert.ok(Math.abs(stats.drawdown - 50 / 1100) < 1e-12);
+  assert.ok(Math.abs(stats.averageReturn - (Math.sqrt(1.05) - 1)) < 1e-12);
+  assert.equal(accountEstimates(trades, trades, null), null);
+  assert.equal(accountEstimates(trades, trades, { ...snapshot, cash: 0, positions: 0 }), null);
+  assert.equal(accountEstimates([{ closedAt: 1, pnl: -10 }], [{ closedAt: 1, pnl: -10 }], { cash: 0, positions: 0, historyCutoff: 4 }).drawdown, 1);
+  assert.equal(accountEstimates(trades, [...trades, { closedAt: 2000, pnl: 2 }], snapshot), null);
+  const fullLoss = [{ closedAt: 1, pnl: -100, cost: 100 }];
+  const accountLoss = accountEstimates(fullLoss, fullLoss, { cash: 900, positions: 0, historyCutoff: 4 });
+  assert.equal(calculateStats(fullLoss).averageReturn, -1);
+  assert.ok(Math.abs(accountLoss.averageReturn + .1) < 1e-12);
+  assert.equal(accountLoss.drawdown, .1);
 });

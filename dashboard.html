@@ -9,7 +9,7 @@
 </head>
 <body>
 <header class="site-header"><a class="brand" href="./dashboard/"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard/" aria-current="page">Dashboard</a><div class="profile" id="profile" hidden><button class="btn profile-button" id="profileBtn" type="button" aria-expanded="false" aria-controls="profileDropdown">Profile <svg class="profile-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 6 4.5 4 4.5-4"/></svg></button><div class="profile-dropdown" id="profileDropdown" hidden><a href="./settings/">Settings</a><button id="signOutBtn" type="button">Sign Out</button></div></div></nav></header>
-<section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth/">Go to sign in</a></section>
+<section id="authGate" class="wrap loading-shell" aria-label="Loading dashboard"><p id="gateStatus" role="status"></p><div class="skeleton skeleton-title" aria-hidden="true"></div><div class="skeleton-stats" aria-hidden="true"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div><div class="skeleton skeleton-calendar" aria-hidden="true"></div></section>
 <main class="wrap" id="dashboard" hidden>
   <div class="top">
     <div>
@@ -17,7 +17,7 @@
     </div>
     <div class="upload">
       <a class="btn" id="connectKalshiBtn" href="./settings/#kalshiPanel">Connect Kalshi</a>
-      <button class="btn" id="refreshKalshiBtn" type="button" hidden disabled>Sync Kalshi</button>
+      <button class="btn" id="refreshKalshiBtn" type="button" hidden disabled>Refresh Kalshi</button>
       <input id="csvFile" type="file" accept=".csv,.txt" disabled>
     </div>
   </div>
@@ -30,13 +30,18 @@
     </div>
   </section>
 
+  <section id="balanceSummary" class="balance-summary" aria-label="Kalshi account balance" hidden>
+    <div id="balanceValues" class="balance-values" hidden><span class="balance-source">Kalshi account</span><span>Cash <strong id="cashBalance"></strong></span><span>Open positions <strong id="positionValue"></strong></span><span class="balance-total">Total equity <strong id="accountEquity"></strong></span><span id="balanceUpdated" class="balance-updated"></span></div>
+    <p id="balanceUnavailable"></p>
+  </section>
+  <p id="marketNameWarning" class="sync-notice" role="status" hidden></p>
   <div class="grid">
-    <div class="card stat"><div class="stat-heading"><div class="label" id="pnlLabel">Month P&amp;L</div><button class="help" type="button" aria-label="About P&amp;L">?<span class="tooltip">Sum of realized P&amp;L after fees for the selected period.</span></button></div><div class="value" id="monthPnl">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label" id="pnlLabel">Month P&amp;L</div><button class="help" type="button" aria-label="About P&amp;L">?<span class="tooltip">Realized P&amp;L after fees. Account % estimates starting equity by subtracting subsequent realized P&amp;L from the latest cash + positions. Assumes no deposits, withdrawals, or changes in open-position value.</span></button></div><div class="value" id="monthPnl">—</div><div class="stat-detail" id="accountReturn" hidden></div></div>
     <div class="card stat"><div class="stat-heading"><div class="label">Closed trades</div><button class="help" type="button" aria-label="About closed trades">?<span class="tooltip">Each close or settlement counts once, regardless of contract quantity.</span></button></div><div class="value" id="tradeCount">—</div></div>
     <div class="card stat"><div class="stat-heading"><div class="label">Win rate</div><button class="help" type="button" aria-label="About win rate">?<span class="tooltip">Profitable closes divided by all closes, including breakeven trades.</span></button></div><div class="value" id="winRate">—</div></div>
-    <div class="card stat"><div class="stat-heading"><div class="label">Average P&amp;L / trade</div><button class="help" type="button" aria-label="About average P&amp;L">?<span class="tooltip">Net P&amp;L divided by the number of closes.</span></button></div><div class="value" id="averagePnl">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label">Average % / trade</div><button class="help" type="button" aria-label="About average return">?<span class="tooltip">Geometric return on entry cost, after fees. Any full loss makes this −100%. The smaller account figure uses estimated account equity instead: (ending / starting equity)^(1 / closes) − 1. Assumes no cash flows or open-position value changes.</span></button></div><div class="value" id="averagePnl">—</div><div class="stat-detail" id="accountAverage" hidden></div></div>
     <div class="card stat"><div class="stat-heading"><div class="label">Profit factor</div><button class="help" type="button" aria-label="About profit factor">?<span class="tooltip">Total gains divided by total losses. ∞ means gains without losses.</span></button></div><div class="value" id="profitFactor">—</div></div>
-    <div class="card stat"><div class="stat-heading"><div class="label">Max drawdown</div><button class="help" type="button" aria-label="About max drawdown">?<span class="tooltip">Largest drop from a P&amp;L peak within the selected period, starting at $0.</span></button></div><div class="value" id="drawdown">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label">Max drawdown</div><button class="help" type="button" aria-label="About max drawdown">?<span class="tooltip">Largest dollar drop from a realized P&amp;L peak. The account % uses an estimated equity curve anchored to the latest cash + positions, assuming no cash flows or open-position value changes. Simultaneous closes are grouped.</span></button></div><div class="value" id="drawdown">—</div><div class="stat-detail" id="accountDrawdown" hidden></div></div>
   </div>
 
   <div class="main">
