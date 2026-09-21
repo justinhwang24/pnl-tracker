@@ -9,7 +9,8 @@ const entry = { fill_id: 'entry', ticker: 'A', outcome_side: 'yes', count_fp: '1
 const exit = { ...entry, fill_id: 'exit', outcome_side: 'no', yes_price_dollars: '.8', no_price_dollars: '.2', fee_cost: '.3', created_time: '2026-01-02T12:00:00Z' };
 
 async function credentials(page) {
-  await page.getByRole('button', { name: 'Connect Kalshi' }).click();
+  await page.getByRole('link', { name: 'Connect Kalshi' }).click();
+  await expect(page).toHaveURL(/settings\.html#kalshiPanel$/);
   await page.getByLabel('API key ID', { exact: true }).fill('test-key-id');
   await page.getByLabel('Private key', { exact: true }).fill(pem);
 }
@@ -28,10 +29,10 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
   await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
   await credentials(page);
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
-  await expect(page.locator('#kalshiStatus')).toContainText('Sync complete');
+  await expect(page).toHaveURL(/dashboard\.html$/);
   await expect(page.locator('#monthPnl')).toHaveText('+$3.50');
   await expect(page.locator('#tradeCount')).toHaveText('1');
-  await expect(page.locator('#kalshiPrivateKey')).toHaveValue('');
+  await expect(page.locator('#kalshiPrivateKey')).toHaveCount(0);
   await expect(page.locator('#fileInfo')).toHaveCount(0);
   await expect(page.locator('#refreshKalshiBtn')).toBeVisible();
   expect(JSON.stringify([...rows.values()])).not.toContain('PRIVATE KEY');
@@ -39,16 +40,21 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
   expect(stored).not.toContain('PRIVATE KEY');
   expect(stored).not.toContain('test-key-id');
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
-  await expect(page.locator('#kalshiStatus')).toContainText('Sync complete');
+  await expect(page).toHaveURL(/settings\.html#kalshiPanel$/);
+  await page.getByLabel('API key ID', { exact: true }).fill('test-key-id');
+  await page.getByLabel('Private key', { exact: true }).fill(pem);
+  await page.locator('#kalshiSyncBtn').click();
+  await expect(page).toHaveURL(/dashboard\.html$/);
   await expect(page.locator('#tradeCount')).toHaveText('1');
   await page.locator('#profileBtn').click();
-  await page.getByRole('button', { name: 'Kalshi connection', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Forget credentials' }).click();
   await expect(page.locator('#kalshiKeyId')).toHaveValue('');
+  await page.getByRole('link', { name: 'Back to dashboard' }).click();
   await expect(page.locator('#monthPnl')).toHaveText('+$3.50');
   await page.reload();
   await expect(page.locator('#monthPnl')).toHaveText('+$3.50');
-  await expect(page.locator('#kalshiKeyId')).toHaveValue('');
+  await expect(page.locator('#kalshiKeyId')).toHaveCount(0);
 });
 
 test('failed API sync preserves previous data and permits retry and CSV upload', async ({ page }) => {
@@ -58,9 +64,10 @@ test('failed API sync preserves previous data and permits retry and CSV upload',
   await credentials(page);
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
   await expect(page.locator('#kalshiStatus')).toContainText('Kalshi rejected the credentials');
+  await page.getByRole('link', { name: 'Back to dashboard' }).click();
   await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
   await expect(page.locator('#csvFile')).toBeEnabled();
-  await expect(page.locator('#kalshiSyncBtn')).toBeEnabled();
+  await expect(page.getByRole('link', { name: 'Connect Kalshi' })).toBeVisible();
 });
 
 test('settlement mismatch keeps saved data and offers credential-free diagnostics', async ({ page }) => {
@@ -79,11 +86,12 @@ test('settlement mismatch keeps saved data and offers credential-free diagnostic
   const diagnostic = await page.locator('#kalshiDiagnosticText').inputValue();
   expect(JSON.parse(diagnostic).settlement).toEqual({ yes: '10', no: '0' });
   expect(diagnostic).not.toMatch(/PRIVATE-MARKET|PRIVATE KEY|test-key-id/);
-  await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
   await expect(page.getByRole('button', { name: 'Copy sync diagnostics' })).toBeVisible();
   await page.getByRole('button', { name: 'Forget credentials' }).click();
   await expect(page.locator('#kalshiDiagnostics')).toBeHidden();
   await expect(page.locator('#kalshiDiagnosticText')).toHaveValue('');
+  await page.getByRole('link', { name: 'Back to dashboard' }).click();
+  await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
 });
 
 test('gross settlement quantities sync into net FIFO P&L and survive reload', async ({ page }) => {
@@ -101,10 +109,10 @@ test('gross settlement quantities sync into net FIFO P&L and survive reload', as
   await page.goto('/dashboard.html');
   await credentials(page);
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
-  await expect(page.locator('#kalshiStatus')).toContainText('Sync complete');
+  await expect(page).toHaveURL(/dashboard\.html$/);
   await expect(page.locator('#monthPnl')).toHaveText('+$5.46');
   await expect(page.locator('#tradeCount')).toHaveText('2');
-  await expect(page.locator('#kalshiDiagnostics')).toBeHidden();
+  await expect(page.locator('#kalshiDiagnostics')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('#monthPnl')).toHaveText('+$5.46');
 });

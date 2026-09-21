@@ -1,6 +1,5 @@
 import { calendarPreferences } from './preferences.js';
 import { initializeProfile } from './profile.js';
-import { importKalshiKey, fetchKalshiHistory } from './kalshi.js';
 import { parseKalshiCSV } from './csv.js';
 import { newestMonth, monthEntries } from './pnl.js';
 import { aggregateTrades, monthlyTrades } from './analytics.js';
@@ -20,34 +19,10 @@ let record = { csv: '', filename: '', timeZone: defaultTimeZone() };
 let currentMonth;
 let backend = null, user = null, store = null;
 let generation = 0, busy = false, identity;
-let kalshiKey = null, kalshiKeyId = '', syncController = null;
-let kalshiConnected = false;
-
 function updateSyncButton() {
-  const connected = kalshiConnected || record.filename.startsWith('Kalshi API');
+  const connected = record.filename.startsWith('Kalshi API');
   el('connectKalshiBtn').hidden = connected;
   el('refreshKalshiBtn').hidden = !connected;
-  el('refreshKalshiBtn').textContent = syncController ? 'Syncing…' : 'Sync Kalshi';
-}
-
-function openKalshiPanel() {
-  el('kalshiPanel').hidden = false;
-  el('connectKalshiBtn').setAttribute('aria-expanded', 'true');
-  if (!kalshiKey) el('kalshiKeyId').focus();
-}
-
-function forgetKalshi() {
-  syncController?.abort();
-  kalshiKey = null;
-  kalshiKeyId = '';
-  kalshiConnected = false;
-  el('kalshiPrivateKey').value = '';
-  el('kalshiPrivateKey').required = true;
-  el('kalshiKeyId').value = '';
-  el('kalshiStatus').textContent = '';
-  el('kalshiDiagnostics').hidden = true;
-  el('kalshiDiagnosticText').value = '';
-  updateSyncButton();
 }
 
 function status(message, error = false) {
@@ -58,7 +33,7 @@ function status(message, error = false) {
 
 function setBusy(value) {
   busy = value;
-  for (const id of ['csvFile', 'resetBtn', 'saveBtn', 'signOutBtn', 'kalshiSyncBtn', 'refreshKalshiBtn', 'kalshiKeyId', 'kalshiPrivateKey', 'kalshiDisconnectBtn']) {
+  for (const id of ['csvFile', 'resetBtn', 'saveBtn', 'signOutBtn', 'refreshKalshiBtn']) {
     el(id).disabled = value;
   }
   updateSyncButton();
@@ -105,7 +80,6 @@ async function save() {
 async function switchUser(nextUser, force = false) {
   if (!nextUser) {
     profile.hide();
-    forgetKalshi();
     ++generation;
     setBusy(true);
     document.getElementById('dashboard').hidden = true;
@@ -115,7 +89,6 @@ async function switchUser(nextUser, force = false) {
   }
   const nextIdentity = nextUser.id;
   if (!force && identity === nextIdentity) return;
-  forgetKalshi();
   identity = nextIdentity;
   const version = ++generation;
   user = nextUser;
@@ -144,85 +117,8 @@ async function switchUser(nextUser, force = false) {
 render();
 setBusy(true);
 
-el('connectKalshiBtn').addEventListener('click', () => {
-  const panel = el('kalshiPanel');
-  panel.hidden = !panel.hidden;
-  el('connectKalshiBtn').setAttribute('aria-expanded', String(!panel.hidden));
-  if (!panel.hidden) el('kalshiKeyId').focus();
-});
 el('refreshKalshiBtn').addEventListener('click', () => {
-  if (busy) return;
-  if (kalshiKey) el('kalshiForm').requestSubmit();
-  else {
-    openKalshiPanel();
-    el('kalshiStatus').textContent = 'Enter your Kalshi credentials to sync again. Your private key is not saved between visits.';
-  }
-});
-el('manageKalshiBtn').addEventListener('click', () => {
-  el('profileBtn').click();
-  openKalshiPanel();
-});
-el('kalshiDisconnectBtn').addEventListener('click', () => {
-  forgetKalshi();
-  el('kalshiStatus').textContent = 'Credentials forgotten. Imported data is still saved to your account.';
-});
-el('copyKalshiDiagnostics').addEventListener('click', async () => {
-  const field = el('kalshiDiagnosticText');
-  try {
-    await navigator.clipboard.writeText(field.value);
-    el('kalshiStatus').textContent = 'Diagnostics copied. Paste them into our chat.';
-  } catch {
-    field.focus(); field.select();
-    el('kalshiStatus').textContent = 'Diagnostics selected. Press Command+C on Mac or Ctrl+C on Windows, then paste them into our chat.';
-  }
-});
-el('kalshiForm').addEventListener('submit', async event => {
-  event.preventDefault();
-  if (busy || !user) return;
-  const version = generation;
-  const keyId = el('kalshiKeyId').value.trim();
-  const controller = new AbortController();
-  syncController = controller;
-  setBusy(true);
-  el('kalshiStatus').textContent = 'Connecting to Kalshi…';
-  el('kalshiDiagnostics').hidden = true;
-  el('kalshiDiagnosticText').value = '';
-  try {
-    if (!/^[a-zA-Z0-9-]{1,100}$/.test(keyId)) throw new Error('Enter a valid API key ID.');
-    let key = kalshiKey;
-    if (el('kalshiPrivateKey').value.trim()) key = await importKalshiKey(el('kalshiPrivateKey').value);
-    else if (keyId !== kalshiKeyId) throw new Error('Enter the private key that belongs to this key ID.');
-    if (!key) throw new Error('Enter your Kalshi private key.');
-    if (version !== generation) return;
-    kalshiKey = key; kalshiKeyId = keyId;
-    el('kalshiPrivateKey').value = '';
-    el('kalshiPrivateKey').required = false;
-    const csv = await fetchKalshiHistory(backend, keyId, key, message => {
-      if (version === generation) el('kalshiStatus').textContent = message;
-    }, controller.signal);
-    if (version !== generation) return;
-    if (new Blob([csv]).size > maxCsvBytes) throw new Error('Imported history exceeds the 2 MB account limit. Use a smaller CSV.');
-    applyRecord({ csv, filename: `Kalshi API · FIFO estimate · synced ${new Date().toISOString()}`, timeZone: record.timeZone });
-    status('Saving Kalshi history…');
-    await save();
-    if (version === generation) {
-      kalshiConnected = true;
-      el('kalshiStatus').textContent = 'Sync complete.';
-      el('kalshiPanel').hidden = true;
-      el('connectKalshiBtn').setAttribute('aria-expanded', 'false');
-    }
-  } catch (error) {
-    if (version === generation) {
-      openKalshiPanel();
-      el('kalshiStatus').textContent = `Could not sync: ${error.message}`;
-      if (error.diagnostic) {
-        el('kalshiDiagnosticText').value = JSON.stringify(error.diagnostic, null, 2);
-        el('kalshiDiagnostics').hidden = false;
-      }
-    }
-  } finally {
-    if (version === generation) { syncController = null; setBusy(false); }
-  }
+  if (!busy) window.location.assign(new URL('./settings.html#kalshiPanel', window.location.href));
 });
 
 el('csvFile').addEventListener('change', async event => {
@@ -314,4 +210,3 @@ async function initialize() {
 initialize();
 
 window.addEventListener('pageshow', event => { if (event.persisted) window.location.reload(); });
-window.addEventListener('pagehide', forgetKalshi);

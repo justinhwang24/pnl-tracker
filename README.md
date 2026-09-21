@@ -16,11 +16,13 @@ data. Imports replace the previous dataset rather than appending to it.
 - Clear data deletes the account upload. Signing out preserves it and returns
   to login. Legacy guest data is no longer loaded by the dashboard.
 
-The dashboard uses a **Profile** dropdown for Settings, Sign Out, and Kalshi
-connection controls. Signed-in homepage visitors are redirected to the dashboard.
+The dashboard uses a **Profile** dropdown for Settings and Sign Out. Kalshi
+connection controls live in Settings; dashboard Connect Kalshi and Sync Kalshi
+shortcuts open that section. A successful sync returns to the dashboard.
+Signed-in homepage visitors are redirected to the dashboard.
 Routine account/import summaries and the CSV upload button are hidden; existing
-CSV datasets still restore. Sync reuses the in-memory key while the page stays
-open and requests credentials again after reload or navigation. Save/load errors
+CSV datasets still restore. Sync reuses the in-memory key while Settings stays
+open and requests credentials again after navigation. Save/load errors
 and retry actions remain visible.
 
 ## Local development
@@ -73,8 +75,8 @@ failed imports keep the previous dataset.
 
 ## Kalshi API sync
 
-The dashboard offers **Connect Kalshi**, switching to a top-level **Sync Kalshi**
-button after an import. Enter your own
+Settings offers **Kalshi connection**. The dashboard shows **Connect Kalshi**,
+switching to a top-level **Sync Kalshi** shortcut after an import. Enter your own
 API key ID and RSA private key from [Kalshi profile settings](https://kalshi.com/account/profile),
 then select **Sync Kalshi**. Prefer read-only permissions. The app accepts both
 PKCS#1 (`RSA PRIVATE KEY`) and PKCS#8 (`PRIVATE KEY`) PEM keys.

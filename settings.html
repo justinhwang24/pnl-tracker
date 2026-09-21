@@ -13,6 +13,25 @@
     <div class="preference-row"><div><label for="weekStart">Start of week</label><p class="hint">Choose the first day in your calendar.</p></div><select id="weekStart"><option value="0">Sunday</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option></select></div>
     <div class="preference-actions"><button class="btn primary" id="saveSettings" type="submit">Save settings</button><a class="btn" href="./dashboard.html">Back to dashboard</a></div>
   </fieldset><p id="settingsStatus" class="status" role="status" aria-live="polite"></p></form>
+  <section class="card kalshi-panel" id="kalshiPanel" aria-labelledby="kalshiTitle">
+    <h2 id="kalshiTitle">Kalshi connection</h2>
+    <p class="hint">Create a key in <a href="https://kalshi.com/account/profile" target="_blank" rel="noopener noreferrer">Kalshi’s API settings</a>, then enter its ID and private key. Choose read-only permissions when available.</p>
+    <form id="kalshiForm">
+      <label for="kalshiKeyId">API key ID</label>
+      <input id="kalshiKeyId" type="text" autocomplete="off" spellcheck="false" maxlength="100" required>
+      <label for="kalshiPrivateKey">Private key</label>
+      <textarea id="kalshiPrivateKey" rows="4" autocomplete="off" spellcheck="false" maxlength="20000" placeholder="-----BEGIN RSA PRIVATE KEY-----" required></textarea>
+      <p class="hint">Your private key stays in this browser tab and is never saved. Only signed read requests are sent. Re-enter credentials after leaving this page.</p>
+      <p class="hint">Sync imports primary-account history and replaces the displayed dataset. P&amp;L is reconstructed using FIFO and trade fees; figures and close counts may differ from Kalshi’s CSV report.</p>
+      <div class="account-row"><button class="btn primary" id="kalshiSyncBtn" type="submit" disabled>Sync Kalshi</button><button class="btn" id="kalshiDisconnectBtn" type="button" disabled>Forget credentials</button></div>
+      <p class="status" id="kalshiStatus" role="status" aria-live="polite"></p>
+      <div id="kalshiDiagnostics" hidden>
+        <label for="kalshiDiagnosticText">Sync diagnostics — no credentials or market names</label>
+        <textarea id="kalshiDiagnosticText" rows="8" readonly spellcheck="false"></textarea>
+        <button class="btn" id="copyKalshiDiagnostics" type="button">Copy sync diagnostics</button>
+      </div>
+    </form>
+  </section>
 </main>
 <script type="module" src="./assets/settings.js"></script>
 </body></html>

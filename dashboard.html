@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="./styles/main.css">
 </head>
 <body>
-<header class="site-header"><a class="brand" href="./dashboard.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard.html" aria-current="page">Dashboard</a><div class="profile" id="profile" hidden><button class="btn profile-button" id="profileBtn" type="button" aria-expanded="false" aria-controls="profileDropdown">Profile <span aria-hidden="true">⌄</span></button><div class="profile-dropdown" id="profileDropdown" hidden><button id="manageKalshiBtn" type="button">Kalshi connection</button><a href="./settings.html">Settings</a><button id="signOutBtn" type="button">Sign Out</button></div></div></nav></header>
+<header class="site-header"><a class="brand" href="./dashboard.html"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard.html" aria-current="page">Dashboard</a><div class="profile" id="profile" hidden><button class="btn profile-button" id="profileBtn" type="button" aria-expanded="false" aria-controls="profileDropdown">Profile <span aria-hidden="true">⌄</span></button><div class="profile-dropdown" id="profileDropdown" hidden><a href="./settings.html">Settings</a><button id="signOutBtn" type="button">Sign Out</button></div></div></nav></header>
 <section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth.html">Go to sign in</a></section>
 <main class="wrap" id="dashboard" hidden>
   <div class="top">
@@ -16,32 +16,12 @@
       <div class="subtitle">Your realized P&amp;L after fees.</div>
     </div>
     <div class="upload">
-      <button class="btn" id="connectKalshiBtn" aria-expanded="false" aria-controls="kalshiPanel">Connect Kalshi</button>
+      <a class="btn" id="connectKalshiBtn" href="./settings.html#kalshiPanel">Connect Kalshi</a>
       <button class="btn" id="refreshKalshiBtn" type="button" hidden disabled>Sync Kalshi</button>
       <input id="csvFile" type="file" accept=".csv,.txt" disabled>
       <button class="btn" id="resetBtn">Clear data</button>
     </div>
   </div>
-
-  <section class="card kalshi-panel" id="kalshiPanel" hidden aria-labelledby="kalshiTitle">
-    <h2 id="kalshiTitle">Import directly from Kalshi</h2>
-    <p class="hint">Create a key in <a href="https://kalshi.com/account/profile" target="_blank" rel="noopener noreferrer">Kalshi’s API settings</a>, then enter its ID and private key. Choose read-only permissions when available.</p>
-    <form id="kalshiForm">
-      <label for="kalshiKeyId">API key ID</label>
-      <input id="kalshiKeyId" type="text" autocomplete="off" spellcheck="false" maxlength="100" required>
-      <label for="kalshiPrivateKey">Private key</label>
-      <textarea id="kalshiPrivateKey" rows="4" autocomplete="off" spellcheck="false" maxlength="20000" placeholder="-----BEGIN RSA PRIVATE KEY-----" required></textarea>
-      <p class="hint">Your private key stays in this browser tab and is never saved. Only signed read requests are sent. Re-enter credentials after leaving this page.</p>
-      <p class="hint">Sync imports primary-account history and replaces the displayed dataset. P&amp;L is reconstructed using FIFO and trade fees; figures and close counts may differ from Kalshi’s CSV report.</p>
-      <div class="account-row"><button class="btn primary" id="kalshiSyncBtn" type="submit">Sync Kalshi</button><button class="btn" id="kalshiDisconnectBtn" type="button">Forget credentials</button></div>
-      <p class="status" id="kalshiStatus" role="status" aria-live="polite"></p>
-      <div id="kalshiDiagnostics" hidden>
-        <label for="kalshiDiagnosticText">Sync diagnostics — no credentials or market names</label>
-        <textarea id="kalshiDiagnosticText" rows="8" readonly spellcheck="false"></textarea>
-        <button class="btn" id="copyKalshiDiagnostics" type="button">Copy sync diagnostics</button>
-      </div>
-    </form>
-  </section>
 
   <section id="accountStatus" aria-label="Account status" hidden>
     <div class="account-row">
