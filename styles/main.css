@@ -265,7 +265,7 @@ h3 { font-size:17px; font-weight:600; }
 .kalshi-panel textarea { resize:vertical; font-family:monospace; }
 .kalshi-panel .hint { line-height:1.6; margin:0 0 12px; }
 .kalshi-panel a { color:var(--green); }
-.preferences-card { margin-top:32px; padding:28px; }
+.preferences-card { margin:32px 0 24px; padding:28px; }
 .preferences-card fieldset { border:0; margin:0; padding:0; min-width:0; }
 .preferences-card legend { font-size:19px; font-weight:650; padding:0 0 10px; }
 .preference-row { display:flex; justify-content:space-between; align-items:center; gap:28px; padding:24px 0; border-bottom:1px solid var(--border); }
