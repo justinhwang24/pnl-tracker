@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { cp, mkdir, rm, writeFile, readFile } from 'node:fs/promises';
+import { cp, mkdir, writeFile, readFile } from 'node:fs/promises';
 
 const defaults = JSON.parse(await readFile('public-config.json', 'utf8'));
 const hasOverride = Boolean(process.env.SUPABASE_URL || process.env.SUPABASE_PUBLISHABLE_KEY);
@@ -11,7 +11,8 @@ if (key.startsWith('eyJ')) {
   const payload = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString());
   if (payload.role !== 'anon') throw new Error('Only a public anon key may be included in the browser build.');
 }
-await rm('dist', { recursive: true, force: true });
+// Update the served directory in place so local rebuilds do not briefly turn
+// every route into a 404 while `python -m http.server` is still running.
 await mkdir('dist/assets', { recursive: true });
 await build({
   entryPoints: ['src/app.js', 'src/auth.js', 'src/settings.js', 'src/home.js'], bundle: true, format: 'esm', target: 'es2022',
