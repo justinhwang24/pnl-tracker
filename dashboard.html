@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<base href="./">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Closebook</title>
+<link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+<header class="site-header"><a class="brand" href="./dashboard/"><span class="brand-mark">c.</span> Closebook</a><nav aria-label="Main navigation"><a href="./dashboard/" aria-current="page">Dashboard</a><div class="profile" id="profile" hidden><button class="btn profile-button" id="profileBtn" type="button" aria-expanded="false" aria-controls="profileDropdown">Profile <svg class="profile-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 6 4.5 4 4.5-4"/></svg></button><div class="profile-dropdown" id="profileDropdown" hidden><a href="./settings/">Settings</a><button id="signOutBtn" type="button">Sign Out</button></div></div></nav></header>
+<section id="authGate" class="wrap"><p id="gateStatus" role="status">Checking your session…</p><a class="btn" href="./auth/">Go to sign in</a></section>
+<main class="wrap" id="dashboard" hidden>
+  <div class="top">
+    <div>
+      <div class="eyebrow">YOUR TRADING WORKSPACE</div><h1>Performance overview</h1>
+    </div>
+    <div class="upload">
+      <a class="btn" id="connectKalshiBtn" href="./settings/#kalshiPanel">Connect Kalshi</a>
+      <button class="btn" id="refreshKalshiBtn" type="button" hidden disabled>Sync Kalshi</button>
+      <input id="csvFile" type="file" accept=".csv,.txt" disabled>
+    </div>
+  </div>
+
+  <section id="accountStatus" aria-label="Account status" hidden>
+    <div class="account-row">
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <button class="btn" id="saveBtn" hidden>Retry save</button>
+      <button class="btn" id="reloadBtn" hidden>Retry loading</button>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="card stat"><div class="stat-heading"><div class="label" id="pnlLabel">Month P&amp;L</div><button class="help" type="button" aria-label="About P&amp;L">?<span class="tooltip">Sum of realized P&amp;L after fees for the selected period.</span></button></div><div class="value" id="monthPnl">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label">Closed trades</div><button class="help" type="button" aria-label="About closed trades">?<span class="tooltip">Each close or settlement counts once, regardless of contract quantity.</span></button></div><div class="value" id="tradeCount">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label">Win rate</div><button class="help" type="button" aria-label="About win rate">?<span class="tooltip">Profitable closes divided by all closes, including breakeven trades.</span></button></div><div class="value" id="winRate">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label">Average P&amp;L / trade</div><button class="help" type="button" aria-label="About average P&amp;L">?<span class="tooltip">Net P&amp;L divided by the number of closes.</span></button></div><div class="value" id="averagePnl">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label">Profit factor</div><button class="help" type="button" aria-label="About profit factor">?<span class="tooltip">Total gains divided by total losses. ∞ means gains without losses.</span></button></div><div class="value" id="profitFactor">—</div></div>
+    <div class="card stat"><div class="stat-heading"><div class="label">Max drawdown</div><button class="help" type="button" aria-label="About max drawdown">?<span class="tooltip">Largest drop from a P&amp;L peak within the selected period, starting at $0.</span></button></div><div class="value" id="drawdown">—</div></div>
+  </div>
+
+  <div class="main">
+    <div class="card calendar-card">
+      <div class="toolbar">
+        <div class="month-title" id="monthTitle"></div>
+        <div class="month-nav">
+          <div class="view-toggle" role="group" aria-label="Calendar view"><button class="view-button" id="monthViewBtn" type="button" aria-pressed="true">Month</button><button class="view-button" id="yearViewBtn" type="button" aria-pressed="false">Year</button></div>
+          <button class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
+          <button class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="weekdays" id="weekdays"></div>
+      <div class="calendar" id="calendar"></div>
+    </div>
+
+    <div class="side">
+      <div class="card chart-card">
+        <div class="section-title">Cumulative P&amp;L</div>
+        <canvas id="chart" width="520" height="260"></canvas>
+      </div>
+
+      <div class="card days-card">
+        <div class="section-title">Daily Breakdown</div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Date</th><th>Trades</th><th>P&amp;L</th></tr></thead>
+            <tbody id="dailyTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="./assets/app.js"></script>
+</body>
+</html>

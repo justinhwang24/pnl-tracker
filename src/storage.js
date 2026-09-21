@@ -7,7 +7,7 @@ export function createGuestStore(storage) {
       if (!raw) return null;
       const record = JSON.parse(raw);
       if (typeof record.csv !== 'string' || typeof record.timeZone !== 'string' || typeof record.filename !== 'string') {
-        throw new Error('Saved browser data is invalid. Use Clear data to remove it.');
+        throw new Error('Saved browser data is invalid. Contact support to reset it.');
       }
       return record;
     },

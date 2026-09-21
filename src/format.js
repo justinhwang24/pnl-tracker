@@ -1,6 +1,6 @@
-export const fmtMoney = v => {
+export const fmtMoney = (v, fractionDigits = 2) => {
   const sign = v > 0 ? "+" : v < 0 ? "-" : "";
-  return sign + "$" + Math.abs(v).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  return sign + "$" + Math.abs(v).toLocaleString(undefined, {minimumFractionDigits:fractionDigits, maximumFractionDigits:fractionDigits});
 };
 export const ymd = d => {
   const y = d.getFullYear();
