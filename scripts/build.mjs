@@ -22,5 +22,10 @@ await build({
 for (const path of ['index.html', 'dashboard.html', 'auth.html', 'settings.html', 'kalshi_pnl_calendar.html', 'styles']) {
   await cp(path, `dist/${path}`, { recursive: true });
 }
+for (const route of ['dashboard', 'auth', 'settings']) {
+  await mkdir(`dist/${route}`, { recursive: true });
+  const html = await readFile(`${route}.html`, 'utf8');
+  await writeFile(`dist/${route}/index.html`, html.replace('<base href="./">', '<base href="../">'));
+}
 await writeFile('dist/.nojekyll', '');
 console.log(`Built dist/ (${url ? 'accounts enabled' : 'guest mode'}).`);

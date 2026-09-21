@@ -8,6 +8,7 @@ import { createAccountStore } from './storage.js';
 import { createBackend } from './backend.js';
 import { maxCsvBytes } from './config.js';
 import { renderCalendar } from './views/calendar.js';
+import { renderYearCalendar } from './views/year.js';
 import { renderStats } from './views/stats.js';
 import { renderTable } from './views/table.js';
 import { renderChart } from './views/chart.js';
@@ -17,6 +18,7 @@ const profile = initializeProfile();
 let trades = [], skipped = 0;
 let record = { csv: '', filename: '', timeZone: defaultTimeZone() };
 let currentMonth;
+let viewMode = 'month';
 let backend = null, user = null, store = null;
 let generation = 0, busy = false, identity;
 function updateSyncButton() {
@@ -33,7 +35,7 @@ function status(message, error = false) {
 
 function setBusy(value) {
   busy = value;
-  for (const id of ['csvFile', 'resetBtn', 'saveBtn', 'signOutBtn', 'refreshKalshiBtn']) {
+  for (const id of ['csvFile', 'saveBtn', 'signOutBtn', 'refreshKalshiBtn']) {
     el(id).disabled = value;
   }
   updateSyncButton();
@@ -45,11 +47,27 @@ function render(resetMonth = false) {
     const today = dateInZone(Date.now(), dateFormatter(record.timeZone));
     currentMonth = newestMonth(Object.keys(pnlByDate).length ? pnlByDate : { [today]: 0 });
   }
-  const entries = monthEntries(pnlByDate, currentMonth);
-  renderCalendar(pnlByDate, currentMonth, countsByDate, calendarPreferences(user, record.timeZone));
-  renderStats(monthlyTrades(datedTrades, currentMonth));
+  const year = currentMonth.getFullYear();
+  const entries = viewMode === 'year'
+    ? Object.entries(pnlByDate).filter(([date]) => date.startsWith(`${year}-`)).sort(([a], [b]) => a.localeCompare(b))
+    : monthEntries(pnlByDate, currentMonth);
+  const periodTrades = viewMode === 'year'
+    ? datedTrades.filter(item => item.date.startsWith(`${year}-`))
+    : monthlyTrades(datedTrades, currentMonth);
+  el('monthViewBtn').setAttribute('aria-pressed', String(viewMode === 'month'));
+  el('yearViewBtn').setAttribute('aria-pressed', String(viewMode === 'year'));
+  el('pnlLabel').textContent = viewMode === 'year' ? 'Year P&L' : 'Month P&L';
+  el('prevMonth').setAttribute('aria-label', viewMode === 'year' ? 'Previous year' : 'Previous month');
+  el('nextMonth').setAttribute('aria-label', viewMode === 'year' ? 'Next year' : 'Next month');
+  if (viewMode === 'year') renderYearCalendar(pnlByDate, countsByDate, year, calendarPreferences(user, record.timeZone), month => {
+    currentMonth = new Date(year, month, 1);
+    viewMode = 'month';
+    render();
+  });
+  else renderCalendar(pnlByDate, currentMonth, countsByDate, calendarPreferences(user, record.timeZone));
+  renderStats(periodTrades);
   renderTable(entries, countsByDate);
-  renderChart(entries);
+  renderChart(entries, viewMode);
   updateSyncButton();
 }
 
@@ -84,7 +102,7 @@ async function switchUser(nextUser, force = false) {
     setBusy(true);
     document.getElementById('dashboard').hidden = true;
     applyRecord(null);
-    window.location.replace(new URL('./auth.html', window.location.href));
+    window.location.replace(new URL('./auth/', document.baseURI));
     return;
   }
   const nextIdentity = nextUser.id;
@@ -118,7 +136,7 @@ render();
 setBusy(true);
 
 el('refreshKalshiBtn').addEventListener('click', () => {
-  if (!busy) window.location.assign(new URL('./settings.html#kalshiPanel', window.location.href));
+  if (!busy) window.location.assign(new URL('./settings/#kalshiPanel', document.baseURI));
 });
 
 el('csvFile').addEventListener('change', async event => {
@@ -140,25 +158,6 @@ el('csvFile').addEventListener('change', async event => {
   }
 });
 
-el('resetBtn').addEventListener('click', async () => {
-  if (busy) return;
-  const version = generation;
-  setBusy(true);
-  try {
-    await store.clear();
-    if (version !== generation) return;
-    applyRecord(null);
-    el('csvFile').value = '';
-    el('saveBtn').hidden = true;
-    el('reloadBtn').hidden = true;
-    status('Saved CSV cleared.');
-  } catch (error) {
-    if (version === generation) status(`Could not clear saved data: ${error.message}`, true);
-  } finally {
-    if (version === generation) setBusy(false);
-  }
-});
-
 el('saveBtn').addEventListener('click', async () => {
   const version = generation;
   setBusy(true);
@@ -168,10 +167,14 @@ el('saveBtn').addEventListener('click', async () => {
 el('reloadBtn').addEventListener('click', () => switchUser(user, true));
 for (const [id, delta] of [['prevMonth', -1], ['nextMonth', 1]]) {
   el(id).addEventListener('click', () => {
-    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
+    currentMonth = viewMode === 'year'
+      ? new Date(currentMonth.getFullYear() + delta, currentMonth.getMonth(), 1)
+      : new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
     render();
   });
 }
+el('monthViewBtn').addEventListener('click', () => { viewMode = 'month'; render(); });
+el('yearViewBtn').addEventListener('click', () => { viewMode = 'year'; render(); });
 
 el('signOutBtn').addEventListener('click', async () => {
   if (busy || !backend) return;
@@ -188,7 +191,7 @@ async function initialize() {
     const callback = new URLSearchParams(window.location.hash.slice(1));
     if (callback.has('error')) {
       const reason = callback.get('error_code') === 'otp_expired' ? 'link_expired' : 'sign_in_failed';
-      window.location.replace(new URL(`./auth.html?error=${reason}`, window.location.href));
+      window.location.replace(new URL(`./auth/?error=${reason}`, document.baseURI));
       return;
     }
     const { data: sessionData, error: sessionError } = await backend.auth.getSession();
@@ -196,6 +199,7 @@ async function initialize() {
     if (!sessionData.session) { await switchUser(null); return; }
     const { data, error } = await backend.auth.getUser();
     if (error || !data.user) { await switchUser(null); return; }
+    if (window.location.pathname.endsWith('/dashboard.html')) window.history.replaceState(null, '', new URL('./dashboard/', document.baseURI));
     backend.auth.onAuthStateChange((_event, session) => {
       // Keep database requests outside the auth callback's lock.
       setTimeout(() => switchUser(session?.user || null), 0);

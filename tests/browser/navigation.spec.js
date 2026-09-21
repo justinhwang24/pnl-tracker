@@ -3,10 +3,10 @@ import { test, expect } from '@playwright/test';
 test('homepage buttons lead to login and direct dashboard visits require a session', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Open dashboard' }).click();
-  await expect(page).toHaveURL(/auth.html$/);
+  await expect(page).toHaveURL(/(?:auth\.html|auth\/)$/);
   await expect(page.getByText('Continue as a guest')).toHaveCount(0);
   await page.goto('/dashboard.html');
-  await expect(page).toHaveURL(/auth.html$/);
+  await expect(page).toHaveURL(/(?:auth\.html|auth\/)$/);
   await expect(page.locator('#csvFile')).toHaveCount(0);
 });
 
@@ -20,7 +20,7 @@ test('marketing and sign-in pages fit a narrow phone', async ({ page }) => {
 
 test('legacy calendar URL also requires login', async ({ page }) => {
   await page.goto('/kalshi_pnl_calendar.html');
-  await expect(page).toHaveURL(/auth.html$/);
+  await expect(page).toHaveURL(/(?:auth\.html|auth\/)$/);
   await expect(page.locator('#csvFile')).toHaveCount(0);
 });
 
@@ -29,7 +29,7 @@ test('signed-in homepage redirects to dashboard and profile menu supports keyboa
   const { setup } = await import('./helpers.js');
   await setup(page);
   await page.goto('/');
-  await expect(page).toHaveURL(/dashboard.html$/);
+  await expect(page).toHaveURL(/(?:dashboard\.html|dashboard\/)$/);
   await expect(page.locator('#profileBtn')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Home', exact: true })).toHaveCount(0);
   await expect(page.getByText('Upload Kalshi CSV', { exact: true })).toHaveCount(0);
@@ -50,7 +50,7 @@ test('signed-in homepage redirects to dashboard and profile menu supports keyboa
   await expect(page.locator('#settingsPage')).toBeVisible();
   await page.locator('#profileBtn').click();
   await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
-  await expect(page).toHaveURL(/auth.html$/);
+  await expect(page).toHaveURL(/(?:auth\.html|auth\/)$/);
 });
 
 test('unverified stored session stays on the public homepage', async ({ page }) => {

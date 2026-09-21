@@ -9,10 +9,11 @@ async function upload(page, text = csv) {
   await page.locator('#csvFile').setInputFiles({ name: 'trades.csv', mimeType: 'text/csv', buffer: Buffer.from(text) });
 }
 
-test('starts empty, uploads, remembers CSV and timezone, regroups months, and clears', async ({ page }) => {
+test('starts empty, uploads, remembers CSV and timezone, and switches month and year', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/dashboard.html');
+  await expect(page).toHaveURL(/dashboard\/$/);
   await expect(page.locator('#status')).toHaveText('Connect Kalshi or upload a CSV to begin.');
   await expect(page.locator('#monthPnl')).toHaveText('—');
   await expect(page.locator('.day')).toHaveCount(42);
@@ -24,6 +25,8 @@ test('starts empty, uploads, remembers CSV and timezone, regroups months, and cl
   await expect(page.locator('#winRate')).toHaveText('33.3%');
   await expect(page.locator('#profitFactor')).toHaveText('2.50');
   await expect(page.locator('#drawdown')).toHaveText('-$4.00');
+  await page.getByRole('button', { name: 'About P&L' }).focus();
+  await expect(page.locator('.help').first().locator('.tooltip')).toBeVisible();
   await page.reload();
   await expect(page.locator('#status')).toContainText('Restored');
   await expect(page.locator('#monthPnl')).toHaveText('+$6.00');
@@ -36,10 +39,19 @@ test('starts empty, uploads, remembers CSV and timezone, regroups months, and cl
   await expect(page.locator('#monthPnl')).toHaveText('+$10.00');
   await expect(page.locator('#tradeCount')).toHaveText('1');
   await expect(page.locator('#profitFactor')).toHaveText('∞');
-  await page.locator('#resetBtn').click();
-  await expect(page.locator('#status')).toHaveText('Saved CSV cleared.');
+  await expect(page.locator('#resetBtn')).toHaveCount(0);
+  await page.locator('#yearViewBtn').click();
+  await expect(page.locator('#monthTitle')).toHaveText('2025');
+  await expect(page.locator('.year-month')).toHaveCount(12);
+  await expect(page.locator('#monthPnl')).toHaveText('+$10.00');
+  await page.locator('#nextMonth').click();
+  await expect(page.locator('#monthTitle')).toHaveText('2026');
+  await expect(page.locator('#monthPnl')).toHaveText('-$4.00');
+  await page.getByRole('button', { name: /January 2026.*Open month view/ }).click();
+  await expect(page.locator('#pnlLabel')).toHaveText('Month P&L');
+  await expect(page.locator('.day')).toHaveCount(42);
   await page.reload();
-  await expect(page.locator('#monthPnl')).toHaveText('—');
+  await expect(page.locator('#monthPnl')).toHaveText('-$4.00');
   expect(errors).toEqual([]);
 });
 

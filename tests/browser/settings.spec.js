@@ -43,7 +43,7 @@ test('settings persist and control calendar precision, trade counts, and every w
 test('settings require sign-in', async ({ page }) => {
   await setup(page, false);
   await page.goto('/settings.html');
-  await expect(page).toHaveURL(/auth.html$/);
+  await expect(page).toHaveURL(/(?:auth\.html|auth\/)$/);
 });
 
 test('save failures are visible and can be retried; mobile settings fit', async ({ page }) => {

@@ -284,9 +284,26 @@ h3 { font-size:17px; font-weight:600; }
   .site-header nav { flex-wrap:wrap; }
 }
 .profile { position:relative; }
-.profile-button { display:flex; align-items:center; gap:12px; }
+.profile-button { display:inline-flex; align-items:center; gap:8px; line-height:1; }
+.profile-chevron { display:block; width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .profile-dropdown { position:absolute; right:0; top:calc(100% + 10px); z-index:20; min-width:170px; padding:6px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:var(--shadow); }
 .site-header .profile-dropdown a, .profile-dropdown button { display:block; width:100%; padding:12px; border:0; border-radius:7px; background:transparent; color:var(--text); text-align:left; text-decoration:none; font:inherit; font-size:14px; cursor:pointer; }
 .profile-dropdown a:hover, .profile-dropdown button:hover { background:var(--panel2); }
 .profile-dropdown a:focus-visible, .profile-dropdown button:focus-visible { outline:2px solid var(--green); outline-offset:-2px; }
 #accountStatus { margin-bottom:20px; }
+.stat-heading { display:flex; align-items:center; gap:7px; }
+.help { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; width:17px; height:17px; padding:0; border:1px solid var(--muted); border-radius:50%; color:var(--muted); background:transparent; font-size:11px; font-weight:700; cursor:help; }
+.tooltip { position:absolute; z-index:30; bottom:calc(100% + 9px); left:0; width:min(240px, 70vw); padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:#202832; box-shadow:var(--shadow); color:var(--text); text-align:left; text-transform:none; letter-spacing:normal; line-height:1.5; font-size:12px; font-weight:400; opacity:0; visibility:hidden; pointer-events:none; }
+.help:hover .tooltip, .help:focus-visible .tooltip { opacity:1; visibility:visible; }
+@media(max-width:640px) { .grid .stat:nth-child(2n) .tooltip { left:auto; right:0; } }
+@media(min-width:1200px) { .grid .stat:nth-child(n+4) .tooltip { left:auto; right:0; } }
+.view-toggle { display:inline-flex; border:1px solid var(--border); border-radius:10px; padding:3px; background:var(--panel2); }
+.view-button { border:0; border-radius:7px; padding:6px 10px; background:transparent; color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
+.view-button[aria-pressed="true"] { background:#344238; color:var(--text); }
+.year-calendar { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.year-month { display:flex; flex-direction:column; align-items:flex-start; gap:12px; min-height:140px; padding:18px; border:1px solid var(--border); border-radius:12px; background:#0f141a; color:var(--text); text-align:left; cursor:pointer; }
+.year-month:hover { border-color:#4b6254; }
+.year-month-name { color:var(--muted); font-size:13px; }
+.year-month strong { font-size:24px; }
+.year-month-count { color:var(--muted); font-size:11px; }
+@media(max-width:640px) { .toolbar { align-items:flex-start; flex-wrap:wrap; } .month-nav { flex-wrap:wrap; } .year-calendar { grid-template-columns:repeat(2,minmax(0,1fr)); } .year-month { min-height:120px; padding:12px; } }

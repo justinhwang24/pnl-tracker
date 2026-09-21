@@ -1,6 +1,6 @@
 import { fmtMoney } from "../format.js";
 
-export function renderChart(entries) {
+export function renderChart(entries, period = 'month') {
   const canvas = document.getElementById("chart");
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
@@ -10,7 +10,7 @@ export function renderChart(entries) {
     ctx.fillStyle = "#8e98a6";
     ctx.font = "14px system-ui";
     ctx.textAlign = "center";
-    ctx.fillText("No data for this month", W/2, H/2);
+    ctx.fillText(`No data for this ${period}`, W/2, H/2);
     return;
   }
 

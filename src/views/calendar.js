@@ -2,6 +2,7 @@ import { fmtMoney, ymd } from "../format.js";
 
 export function renderCalendar(pnlByDate, currentMonth, countsByDate = {}, { showTrades = true, rounding = true, weekStart = 1 } = {}) {
   const cal = document.getElementById("calendar");
+  cal.classList.remove('year-calendar');
   cal.innerHTML = "";
   const y = currentMonth.getFullYear(), m = currentMonth.getMonth();
   document.getElementById("monthTitle").textContent =

@@ -5,7 +5,8 @@ const form = document.getElementById('signInForm');
 const button = document.getElementById('signInBtn');
 const googleButton = document.getElementById('googleSignInBtn');
 const status = document.getElementById('authStatus');
-const dashboard = new URL('./dashboard.html', window.location.href).href;
+const dashboard = new URL('./dashboard.html', document.baseURI).href;
+const cleanDashboard = new URL('./dashboard/', document.baseURI).href;
 let backend;
 
 async function initialize() {
@@ -20,11 +21,11 @@ async function initialize() {
     if (error) throw error;
     if (data.session) {
       const { data: verified, error: verificationError } = await backend.auth.getUser();
-      if (!verificationError && verified.user) { window.location.replace(dashboard); return; }
+      if (!verificationError && verified.user) { window.location.replace(cleanDashboard); return; }
       await backend.auth.signOut({ scope: 'local' });
     }
     backend.auth.onAuthStateChange((_event, session) => {
-      if (session) window.location.replace(dashboard);
+      if (session) window.location.replace(cleanDashboard);
     });
     if (new URLSearchParams(window.location.search).has('error')) {
       status.textContent = new URLSearchParams(window.location.search).get('error') === 'link_expired'

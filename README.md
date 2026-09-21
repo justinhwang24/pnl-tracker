@@ -5,16 +5,16 @@ data. Imports replace the previous dataset rather than appending to it.
 
 - Use Settings to choose a time zone, show or hide daily trade counts, toggle
   whole-dollar calendar rounding, and start the week on any day. Preferences
-  sync through Supabase account metadata and survive clearing or replacing CSVs.
+  sync through Supabase account metadata and survive replacing CSVs.
   Existing uploads supply the time zone until you first save account settings.
-- See daily and monthly close counts, P&L, win rate, average P&L per close,
+- See daily, monthly, and yearly close counts, P&L, win rate, average P&L per close,
   profit factor, and maximum realized drawdown.
 - The dashboard requires a verified Supabase session. Signed-out visitors go to
   the separate sign-in page; dashboard contents stay hidden during verification.
 - Email links create accounts and sign returning users in. The latest CSV and
   timezone are saved to the account across devices.
-- Clear data deletes the account upload. Signing out preserves it and returns
-  to login. Legacy guest data is no longer loaded by the dashboard.
+- Signing out preserves the account upload and returns to login. Legacy guest
+  data is no longer loaded by the dashboard.
 
 The dashboard uses a **Profile** dropdown for Settings and Sign Out. Kalshi
 connection controls live in Settings; dashboard Connect Kalshi and Sync Kalshi
@@ -37,6 +37,8 @@ npm start
 Open http://localhost:8000. `npm start` builds the app and serves only `dist/`.
 Re-run it after code changes. The build uses the public project settings in `public-config.json` by default.
 The old `kalshi_pnl_calendar.html` path redirects to the dashboard.
+The main pages use `/dashboard/`, `/settings/`, and `/auth/` routes. The old
+`.html` addresses remain available for existing bookmarks and auth callbacks.
 
 ## Supabase setup
 
@@ -127,8 +129,8 @@ is deployed, sync displays an availability error. Existing saved data remains av
   results must fit the existing 2 MB account limit.
 - The imported timestamps and P&L are saved through the existing account storage.
   Repeat sync replaces the dataset; it does not accumulate duplicates. Credentials
-  must be entered again after leaving the page. Forgetting them keeps imported data;
-  **Clear data** removes it. There is no scheduled background sync.
+  must be entered again after leaving the page. Forgetting them keeps imported data.
+  There is no scheduled background sync.
 
 References: [Kalshi authentication](https://docs.kalshi.com/getting_started/api_keys),
 [fill direction](https://docs.kalshi.com/getting_started/order_direction),

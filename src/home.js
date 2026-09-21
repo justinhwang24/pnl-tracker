@@ -8,7 +8,7 @@ async function initialize() {
       const { data, error } = await backend.auth.getSession();
       if (error || !data.session) return;
       const { data: verified, error: verificationError } = await backend.auth.getUser();
-      if (!verificationError && verified.user) window.location.replace(new URL('./dashboard.html', window.location.href));
+      if (!verificationError && verified.user) window.location.replace(new URL('./dashboard/', document.baseURI));
     }
     backend.auth.onAuthStateChange((_event, session) => {
       if (session) setTimeout(() => redirectIfSignedIn().catch(() => {}), 0);

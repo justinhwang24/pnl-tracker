@@ -10,7 +10,7 @@ const exit = { ...entry, fill_id: 'exit', outcome_side: 'no', yes_price_dollars:
 
 async function credentials(page) {
   await page.getByRole('link', { name: 'Connect Kalshi' }).click();
-  await expect(page).toHaveURL(/settings\.html#kalshiPanel$/);
+  await expect(page).toHaveURL(/(?:settings\.html|settings\/)#kalshiPanel$/);
   await page.getByLabel('API key ID', { exact: true }).fill('test-key-id');
   await page.getByLabel('Private key', { exact: true }).fill(pem);
 }
@@ -29,7 +29,7 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
   await expect(page.locator('#monthPnl')).toHaveText('+$15.00');
   await credentials(page);
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
-  await expect(page).toHaveURL(/dashboard\.html$/);
+  await expect(page).toHaveURL(/(?:dashboard\.html|dashboard\/)$/);
   await expect(page.locator('#monthPnl')).toHaveText('+$3.50');
   await expect(page.locator('#tradeCount')).toHaveText('1');
   await expect(page.locator('#kalshiPrivateKey')).toHaveCount(0);
@@ -40,11 +40,11 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
   expect(stored).not.toContain('PRIVATE KEY');
   expect(stored).not.toContain('test-key-id');
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
-  await expect(page).toHaveURL(/settings\.html#kalshiPanel$/);
+  await expect(page).toHaveURL(/(?:settings\.html|settings\/)#kalshiPanel$/);
   await page.getByLabel('API key ID', { exact: true }).fill('test-key-id');
   await page.getByLabel('Private key', { exact: true }).fill(pem);
   await page.locator('#kalshiSyncBtn').click();
-  await expect(page).toHaveURL(/dashboard\.html$/);
+  await expect(page).toHaveURL(/(?:dashboard\.html|dashboard\/)$/);
   await expect(page.locator('#tradeCount')).toHaveText('1');
   await page.locator('#profileBtn').click();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
@@ -109,7 +109,7 @@ test('gross settlement quantities sync into net FIFO P&L and survive reload', as
   await page.goto('/dashboard.html');
   await credentials(page);
   await page.getByRole('button', { name: 'Sync Kalshi', exact: true }).click();
-  await expect(page).toHaveURL(/dashboard\.html$/);
+  await expect(page).toHaveURL(/(?:dashboard\.html|dashboard\/)$/);
   await expect(page.locator('#monthPnl')).toHaveText('+$5.46');
   await expect(page.locator('#tradeCount')).toHaveText('2');
   await expect(page.locator('#kalshiDiagnostics')).toHaveCount(0);

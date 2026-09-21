@@ -26,7 +26,7 @@ const login = () => {
   forgetKalshi();
   profile.hide();
   el('settingsPage').hidden = true;
-  window.location.replace(new URL('./auth.html', window.location.href));
+  window.location.replace(new URL('./auth/', document.baseURI));
 };
 
 async function initialize() {
@@ -125,7 +125,7 @@ el('kalshiForm').addEventListener('submit', async event => {
     const store = createAccountStore(backend, user.id);
     const previous = await store.load();
     await store.save({ csv, filename: `Kalshi API · FIFO estimate · synced ${new Date().toISOString()}`, timeZone: calendarPreferences(user, previous?.timeZone).timeZone });
-    window.location.assign(new URL('./dashboard.html', window.location.href));
+    window.location.assign(new URL('./dashboard/', document.baseURI));
   } catch (error) {
     el('kalshiStatus').textContent = `Could not sync: ${error.message}`;
     if (error.diagnostic) {
