@@ -48,7 +48,13 @@ export function parseKalshiCSV(text) {
     try {
       const value = JSON.parse(snapshotRaw);
       if (['cash', 'positions', 'fetchedAt', 'historyCutoff'].every(key => Number.isFinite(value[key]) && value[key] >= 0) &&
-          value.fetchedAt > 0 && value.historyCutoff > 0 && value.historyCutoff <= value.fetchedAt) snapshot = value;
+          value.fetchedAt > 0 && value.historyCutoff > 0 && value.historyCutoff <= value.fetchedAt) {
+        snapshot = { cash: value.cash, positions: value.positions, fetchedAt: value.fetchedAt, historyCutoff: value.historyCutoff };
+        if (Array.isArray(value.cashFlows) && value.cashFlows.length <= 10000 && value.cashFlows.every(flow =>
+          ['deposit', 'withdrawal'].includes(flow?.kind) && Number.isFinite(flow.amount) && flow.amount > 0 && Number.isFinite(flow.at) && flow.at > 0)) {
+          snapshot.cashFlows = value.cashFlows.map(({ kind, amount, at }) => ({ kind, amount, at }));
+        }
+      }
     } catch { /* Optional metadata never invalidates trade rows. */ }
   }
   let skipped = 0;

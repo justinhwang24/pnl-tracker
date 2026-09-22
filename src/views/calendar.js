@@ -101,11 +101,11 @@ export function renderCalendar(pnlByDate, currentMonth, countsByDate = {}, { sho
         info.append(meta);
         const result = node('div', 'day-trade-result', '');
         result.append(node('strong', trade.pnl > 0 ? 'pos' : trade.pnl < 0 ? 'neg' : 'zero', fmtMoney(trade.pnl)));
-        if (trade.cost) result.append(node('span', 'day-trade-return', `${(trade.pnl / trade.cost * 100).toFixed(1)}% return`));
+        if (trade.cost) result.append(node('span', 'day-trade-return', `${Math.round(trade.pnl / trade.cost * 100)}% return`));
         line.append(info, result);
         list.append(line);
       }
-      details.append(list, node('div', 'day-details-footer', `After fees · ${timeZone.replaceAll('_', ' ')}`));
+      details.append(list);
       cell.setAttribute('aria-describedby', details.id);
       cell.append(details);
       cell.addEventListener('mouseenter', () => showDetails(cell, details));
@@ -121,7 +121,6 @@ export function renderCalendar(pnlByDate, currentMonth, countsByDate = {}, { sho
     const num = document.createElement("div");
     num.className = "date-num";
     num.textContent = d.getDate();
-    if (key === today) num.append(node('span', 'today-dot', ''));
     cell.appendChild(num);
 
     const p = document.createElement("div");

@@ -46,13 +46,10 @@ export function calculateStats(trades) {
 }
 
 function returnStats(trades) {
-  if (trades.some(t => !Number.isFinite(t.cost) || t.cost <= 0 || !Number.isFinite(t.pnl / t.cost) || t.pnl / t.cost < -1)) {
+  if (trades.some(t => !Number.isFinite(t.cost) || t.cost <= 0 || !Number.isFinite(t.pnl / t.cost))) {
     return { averageReturn: null };
   }
-  // Log space avoids overflowing the product of individual growth factors.
-  // A full loss contributes log(0), correctly producing a geometric return of -1.
-  const meanLogGrowth = trades.reduce((sum, trade) => sum + Math.log1p(trade.pnl / trade.cost) / trades.length, 0);
-  return { averageReturn: Math.expm1(meanLogGrowth) };
+  return { averageReturn: trades.reduce((sum, trade) => sum + trade.pnl / trade.cost, 0) / trades.length };
 }
 
 // Balance-anchored estimates: hold net funding and open-position valuation
@@ -74,4 +71,26 @@ export function accountEstimates(periodTrades, allTrades, snapshot) {
     drawdown = Math.max(drawdown, (peak - equity) / peak);
   }
   return { periodReturn: equity / start - 1, drawdown, averageReturn: Math.expm1(Math.log(equity / start) / periodTrades.length) };
+}
+
+// Cash-flow-adjusted realized growth. Build the period-opening book capital from
+// funding and realized P&L instead of reversing from today's marked portfolio;
+// doing the latter incorrectly folds current unrealized gains into the start.
+export function portfolioGrowth(periodTrades, allTrades, snapshot, periodPrefix, timeZone) {
+  if (!periodTrades.length || !snapshot || !Array.isArray(snapshot.cashFlows) || !periodPrefix || !timeZone) return null;
+  const formatter = dateFormatter(timeZone);
+  const startKey = periodPrefix.replace(/-$/, '');
+  const period = date => date.startsWith(periodPrefix);
+  const pnlBeforeStart = allTrades.filter(trade => trade.date && trade.date < startKey).reduce((sum, trade) => sum + trade.pnl, 0);
+  let fundingBeforeStart = 0, periodDeposits = 0;
+  for (const flow of snapshot.cashFlows) {
+    const date = dateInZone(flow.at, formatter);
+    if (date < startKey) fundingBeforeStart += flow.kind === 'deposit' ? flow.amount : -flow.amount;
+    else if (flow.kind === 'deposit' && period(date)) periodDeposits += flow.amount;
+  }
+  const startingEquity = fundingBeforeStart + pnlBeforeStart;
+  const basis = startingEquity + periodDeposits;
+  const pnl = periodTrades.reduce((sum, trade) => sum + trade.pnl, 0);
+  if (!Number.isFinite(basis) || basis <= 0) return null;
+  return { rate: pnl / basis, basis };
 }

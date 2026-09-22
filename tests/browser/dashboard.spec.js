@@ -93,7 +93,7 @@ test('cost-based returns and day details support hover and keyboard focus', asyn
   await page.goto('/dashboard.html');
   await expect(page.locator('#csvFile')).toBeEnabled();
   await upload(page, 'close_timestamp,realized_pnl_with_fees_dollars,entry_cost_dollars,ticker,quantity,market_title\n2026-01-02T12:00:00Z,50,100,MARKET-A,200,Will the Fed cut interest rates in January?\n2026-01-03T12:00:00Z,-25,100,MARKET-B,150,Will inflation fall below 3%?');
-  await expect(page.locator('#averagePnl')).toHaveText('6.1%');
+  await expect(page.locator('#portfolioGrowth')).toHaveText('—');
   await expect(page.locator('#drawdown')).toHaveText('-$25.00');
   const day = page.locator('[data-date="2026-01-02"]');
   await day.hover();
@@ -101,7 +101,7 @@ test('cost-based returns and day details support hover and keyboard focus', asyn
   await expect(day.locator('.day-trade-title')).toHaveText('Will the Fed cut interest rates in January?');
   await expect(day.locator('.day-trade-meta')).toContainText('200 contracts');
   await expect(day.locator('.day-trade-result')).toContainText('+$50.00');
-  await expect(day.locator('.day-trade-return')).toHaveText('50.0% return');
+  await expect(day.locator('.day-trade-return')).toHaveText('50% return');
   await page.locator('h1').hover();
   await expect(day.getByRole('tooltip')).toBeHidden();
   await day.focus();
@@ -121,9 +121,12 @@ test('today follows the calendar timezone and hover cards fit mobile edges', asy
   const day = page.locator('[data-date="2026-01-02"]');
   await expect(day).toHaveAttribute('aria-current', 'date');
   await expect(page.locator('.today')).toHaveCount(1);
+  await expect(page.locator('.today-dot')).toHaveCount(0);
   await day.click();
   const tooltip = day.getByRole('tooltip');
   await expect(tooltip).toBeVisible();
+  await expect(tooltip).not.toContainText('After fees');
+  await expect(tooltip).not.toContainText('America/New York');
   const box = await tooltip.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(390);
@@ -132,6 +135,15 @@ test('today follows the calendar timezone and hover cards fit mobile edges', asy
   await page.screenshot({ path: test.info().outputPath('calendar-mobile.png') });
   await page.keyboard.press('Escape');
   await expect(tooltip).toBeHidden();
+  await expect(page.locator('#chartTotal')).toHaveText('$50.00');
+  await expect(page.locator('#chartPeriod')).toHaveText('Past Day');
+  await page.locator('#chart').hover({ position: { x: 52, y: 110 } });
+  await expect(page.locator('#chartTooltip').locator('strong')).toHaveText('$0.00');
+  await page.locator('#chart').hover({ position: { x: 220, y: 110 } });
+  await expect(page.locator('#chartTooltip')).toBeVisible();
+  await expect(page.locator('#chartTooltip')).toContainText('+$50.00');
+  await page.getByRole('button', { name: 'ALL', exact: true }).click();
+  await expect(page.locator('#chartPeriod')).toHaveText('All time');
 });
 
 test('session verification displays a skeleton until data loads', async ({ page }) => {

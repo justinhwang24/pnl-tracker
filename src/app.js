@@ -27,7 +27,12 @@ import { fetchKalshiHistory } from './kalshi.js';
 function updateSyncButton() {
   const connected = Boolean(connection);
   el('connectKalshiBtn').hidden = connected;
+  el('kalshiRefreshControl').hidden = !connected;
   el('refreshKalshiBtn').hidden = !connected;
+  const updated = snapshot?.fetchedAt;
+  el('lastKalshiUpdated').textContent = updated
+    ? `Last updated ${new Date(updated).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+    : 'Not updated yet';
 }
 
 function status(message, error = false) {
@@ -68,9 +73,10 @@ function render(resetMonth = false) {
     render();
   });
   else renderCalendar(pnlByDate, currentMonth, countsByDate, { ...calendarPreferences(user, record.timeZone), trades: datedTrades });
-  renderStats(periodTrades, trades, snapshot, record.filename.startsWith('Kalshi API'), syncIssues);
+  const periodPrefix = viewMode === 'year' ? `${year}-` : `${year}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-`;
+  renderStats(periodTrades, datedTrades, snapshot, record.filename.startsWith('Kalshi API'), syncIssues, { periodPrefix, timeZone: record.timeZone });
   renderTable(entries, countsByDate);
-  renderChart(entries, viewMode);
+  renderChart(trades);
   updateSyncButton();
 }
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, verify, constants } from 'node:crypto';
-import { importKalshiKey, signedHeaders, historyToCSV, fetchKalshiHistory, balanceSnapshot, kalshiRequestError } from '../src/kalshi.js';
+import { importKalshiKey, signedHeaders, historyToCSV, fetchKalshiHistory, balanceSnapshot, cashFlowsFromHistory, kalshiRequestError } from '../src/kalshi.js';
 import { parseKalshiCSV } from '../src/csv.js';
 import { createHandler } from '../supabase/functions/kalshi-read/handler.js';
 
@@ -81,6 +81,16 @@ test('balance units preserve dollar precision and reject missing values', () => 
   assert.throws(() => balanceSnapshot({ balance: -1, portfolio_value: 0 }, 100), /Invalid/);
 });
 
+test('funding history keeps finalized positive deposits and withdrawals', () => {
+  assert.deepEqual(cashFlowsFromHistory([
+    { id: 'a', amount_cents: 12345, finalized_ts: 20 },
+    { id: 'pending', amount_cents: 50, finalized_ts: 0 },
+  ], [{ id: 'b', amount_cents: 2500, finalized_ts: 30 }]), [
+    { kind: 'deposit', amount: 123.45, at: 20000 },
+    { kind: 'withdrawal', amount: 25, at: 30000 },
+  ]);
+});
+
 test('additional-read failures explain stale deployments and permission failures', async () => {
   const error = await kalshiRequestError('/portfolio/balance', null, {
     context: Response.json({ error: 'Invalid Kalshi request. Check your key ID and device clock.' }, { status: 400 }),
@@ -104,6 +114,8 @@ test('sync caches readable historical market names and snapshots in the saved CS
       '/historical/fills': { fills: [fill('a', 'yes', 1, .4, 0), fill('b', 'no', 1, .7, 0, 2)] },
       '/portfolio/fills': { fills: [] }, '/portfolio/settlements': { settlements: [] },
       '/portfolio/balance': { balance: 10000, portfolio_value: 5000 },
+      '/portfolio/deposits': { deposits: [{ id: 'funding', amount_cents: 10000, finalized_ts: 1767225600 }], cursor: '' },
+      '/portfolio/withdrawals': { withdrawals: [], cursor: '' },
       '/markets': { markets: [] }, '/historical/markets': { markets: [{ ticker: 'A', title }] },
     };
     return { data: responses[body.path] };
@@ -112,6 +124,7 @@ test('sync caches readable historical market names and snapshots in the saved CS
   const parsed = parseKalshiCSV(csv);
   assert.equal(parsed.trades[0].title, title);
   assert.equal(parsed.snapshot.cash + parsed.snapshot.positions, 150);
+  assert.equal(parsed.snapshot.cashFlows[0].amount, 100);
   assert.equal(parsed.trades[0].side, 'yes');
   paths.length = 0;
   await fetchKalshiHistory(client, 'id', key, undefined, undefined, csv);
@@ -165,6 +178,9 @@ test('proxy scopes balance to primary account and validates market queries', asy
   } });
   assert.equal((await handler(request({ ...validBody(), path: '/portfolio/balance' }))).status, 200);
   assert.equal(urls.at(-1).search, '?subaccount=0');
+  assert.equal((await handler(request({ ...validBody(), path: '/portfolio/deposits' }))).status, 200);
+  assert.equal(urls.at(-1).searchParams.get('limit'), '500');
+  assert.equal(urls.at(-1).searchParams.has('max_ts'), false);
   for (const path of ['/markets', '/historical/markets']) {
     assert.equal((await handler(request({ ...validBody(), path, tickers: ['KXTRUMP-ABC', 'B'] }))).status, 200);
     assert.equal(urls.at(-1).searchParams.get('tickers'), 'KXTRUMP-ABC,B');

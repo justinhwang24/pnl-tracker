@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseKalshiCSV } from '../src/csv.js';
-import { aggregateTrades, monthlyTrades, calculateStats, accountEstimates } from '../src/analytics.js';
+import { aggregateTrades, monthlyTrades, calculateStats, accountEstimates, portfolioGrowth } from '../src/analytics.js';
 
 const csv = rows => 'close_timestamp,realized_pnl_with_fees_dollars\n' + rows.join('\n');
 
@@ -39,19 +39,19 @@ test('statistics use chronological closes, including breakeven in win rate', () 
   });
 });
 
-test('geometric average includes full losses while drawdown remains in dollars', () => {
+test('average trade return is arithmetic while drawdown remains in dollars', () => {
   const stats = calculateStats([{ closedAt: 1, pnl: 50, cost: 100 }, { closedAt: 2, pnl: -25, cost: 100 }]);
-  assert.ok(Math.abs(stats.averageReturn - (Math.sqrt(1.5 * 0.75) - 1)) < 1e-12);
+  assert.equal(stats.averageReturn, .125);
   assert.equal(stats.drawdown, 25);
   assert.equal(calculateStats([{ closedAt: 1, pnl: -100, cost: 100 }]).averageReturn, -1);
   assert.equal(calculateStats([{ closedAt: 1, pnl: -100, cost: 100 }]).drawdown, 100);
-  assert.equal(calculateStats([{ closedAt: 1, pnl: -101, cost: 100 }]).averageReturn, null);
+  assert.equal(calculateStats([{ closedAt: 1, pnl: -101, cost: 100 }]).averageReturn, -1.01);
   assert.equal(calculateStats([{ closedAt: 1, pnl: 1, cost: 0 }]).averageReturn, null);
   const simultaneous = calculateStats([{ closedAt: 1, pnl: -50, cost: 100 }, { closedAt: 1, pnl: 100, cost: 100 }]);
   assert.equal(simultaneous.drawdown, 0);
-  assert.equal(simultaneous.averageReturn, 0);
+  assert.equal(simultaneous.averageReturn, .25);
   const mixed = calculateStats([{ closedAt: 1, pnl: -10, cost: 10 }, { closedAt: 2, pnl: 100, cost: 200 }]);
-  assert.equal(mixed.averageReturn, -1);
+  assert.equal(mixed.averageReturn, -.25);
   assert.equal(mixed.drawdown, 10);
 });
 
@@ -80,4 +80,23 @@ test('account estimates anchor historical periods to total equity, not just cash
   assert.equal(calculateStats(fullLoss).averageReturn, -1);
   assert.ok(Math.abs(accountLoss.averageReturn + .1) < 1e-12);
   assert.equal(accountLoss.drawdown, .1);
+});
+
+test('portfolio growth adjusts its starting basis for deposits and withdrawals', () => {
+  const trades = [
+    { closedAt: 1, date: '2026-01-05', pnl: 20 },
+    { closedAt: 2, date: '2026-02-05', pnl: 30 },
+  ];
+  const snapshot = {
+    cash: 1150, positions: 0, historyCutoff: 3,
+    cashFlows: [
+      { kind: 'deposit', amount: 1000, at: Date.parse('2025-12-02T12:00:00Z') },
+      { kind: 'deposit', amount: 200, at: Date.parse('2026-01-02T12:00:00Z') },
+      { kind: 'withdrawal', amount: 100, at: Date.parse('2026-02-02T12:00:00Z') },
+    ],
+  };
+  const result = portfolioGrowth(trades.slice(0, 1), trades, snapshot, '2026-01-', 'UTC');
+  assert.equal(result.basis, 1200);
+  assert.ok(Math.abs(result.rate - 20 / 1200) < 1e-12);
+  assert.equal(portfolioGrowth(trades, trades, { ...snapshot, cashFlows: undefined }, '2026-', 'UTC'), null);
 });

@@ -86,8 +86,8 @@ export async function fetchKalshiHistory(client, keyId, key, progress = () => {}
     if (error || data?.error) throw await kalshiRequestError(path, data, error);
     return data;
   }
-  progress('Reading balance and market names…');
-  const [balanceResult, titlesResult] = await Promise.allSettled([
+  progress('Reading balance, funding, and market names…');
+  const [balanceResult, titlesResult, flowsResult] = await Promise.allSettled([
     read('/portfolio/balance').then(data => balanceSnapshot(data, maxTs)),
     (async () => {
       const missing = [...new Set(trades.map(trade => trade.ticker))].filter(ticker => !titles.has(ticker));
@@ -107,10 +107,14 @@ export async function fetchKalshiHistory(client, keyId, key, progress = () => {}
         }
       }
     })(),
+    Promise.all([pages('/portfolio/deposits', 'deposits'), pages('/portfolio/withdrawals', 'withdrawals')])
+      .then(([deposits, withdrawals]) => cashFlowsFromHistory(deposits, withdrawals)),
   ]);
   signal?.throwIfAborted();
   // Optional enrichment cannot discard successfully reconstructed trade history.
-  const snapshot = balanceResult.status === 'fulfilled' ? balanceResult.value : null;
+  const snapshot = balanceResult.status === 'fulfilled'
+    ? { ...balanceResult.value, ...(flowsResult.status === 'fulfilled' ? { cashFlows: flowsResult.value } : {}) }
+    : null;
   const issues = {};
   if (balanceResult.status === 'rejected') issues.balance = balanceResult.reason.message;
   if (titlesResult.status === 'rejected') issues.markets = titlesResult.reason.message;
@@ -128,6 +132,20 @@ export function balanceSnapshot(data, historyCutoff) {
   const positions = number(data?.portfolio_value, 'portfolio value') / 100;
   if (cash < 0 || positions < 0) throw new Error('Invalid account balance.');
   return { cash, positions, fetchedAt: Date.now(), historyCutoff: historyCutoff * 1000 };
+}
+
+export function cashFlowsFromHistory(deposits, withdrawals) {
+  const flows = [], seen = new Set();
+  for (const [kind, records] of [['deposit', deposits], ['withdrawal', withdrawals]]) {
+    for (const record of records) {
+      if (!record?.id || seen.has(`${kind}:${record.id}`) || !Number.isFinite(Number(record.finalized_ts)) || Number(record.finalized_ts) <= 0) continue;
+      const amount = Number(record.amount_cents) / 100;
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      seen.add(`${kind}:${record.id}`);
+      flows.push({ kind, amount, at: Number(record.finalized_ts) * 1000 });
+    }
+  }
+  return flows.sort((a, b) => a.at - b.at);
 }
 
 function number(value, field) {

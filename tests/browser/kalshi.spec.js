@@ -24,6 +24,8 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
     expect(JSON.stringify(body)).not.toContain('PRIVATE KEY');
     const data = body.path === '/historical/fills' ? { fills: [entry], cursor: '' } : body.path === '/portfolio/fills' ? { fills: [entry, exit], cursor: '' } :
       body.path === '/portfolio/balance' ? { balance: 10000, portfolio_value: 5350 } :
+      body.path === '/portfolio/deposits' ? { deposits: [{ id: 'deposit', amount_cents: 10000, finalized_ts: Date.parse('2026-01-01T00:00:00Z') / 1000 }], cursor: '' } :
+      body.path === '/portfolio/withdrawals' ? { withdrawals: [], cursor: '' } :
       body.path === '/markets' ? { markets: [{ ticker: 'A', title: 'Will the Fed cut interest rates in January?', yes_sub_title: 'At least 25 basis points' }] } : { settlements: [] };
     await route.fulfill({ json: data });
   });
@@ -35,10 +37,13 @@ test('API sync signs locally, saves results, refreshes without duplicates, and f
   await expect(page.locator('#monthPnl')).toHaveText('+$3.50');
   await expect(page.locator('#tradeCount')).toHaveText('1');
   await expect(page.locator('#cashBalance')).toHaveText('$100.00');
-  await expect(page.locator('#positionValue')).toHaveText('$53.50');
   await expect(page.locator('#accountEquity')).toHaveText('$153.50');
-  await expect(page.locator('#accountReturn')).toHaveText('2.33% est. account return');
-  await expect(page.locator('#accountAverage')).toHaveText('2.33% est. account / close');
+  await expect(page.locator('#balanceValues')).toContainText('Cash');
+  await expect(page.locator('#balanceValues')).toContainText('Portfolio');
+  await expect(page.locator('#balanceValues')).not.toContainText('Total equity');
+  await expect(page.locator('#lastKalshiUpdated')).toContainText('Last updated');
+  await expect(page.locator('#portfolioGrowth')).toHaveText('3.50%');
+  await expect(page.locator('#portfolioGrowthBasis')).toHaveText('$100.00 est. starting + deposits');
   await expect(page.locator('#accountDrawdown')).toHaveText('0.00% est. account drawdown');
   const day = page.locator('[data-date="2026-01-02"]');
   await day.hover();
@@ -150,7 +155,7 @@ test('gross settlement quantities sync into net FIFO P&L and survive reload', as
   await expect(page.locator('#monthPnl')).toHaveText('+$5.46');
   await expect(page.locator('#tradeCount')).toHaveText('2');
   await expect(page.locator('#balanceUnavailable')).toBeVisible();
-  await expect(page.locator('#accountReturn')).toBeHidden();
+  await expect(page.locator('#portfolioGrowth')).toHaveText('—');
   await expect(page.locator('#kalshiDiagnostics')).toHaveCount(0);
   await page.reload();
   await expect(page.locator('#monthPnl')).toHaveText('+$5.46');

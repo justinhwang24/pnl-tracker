@@ -1,5 +1,6 @@
-const paths = new Set(['/portfolio/fills', '/historical/fills', '/portfolio/settlements']);
+const paths = new Set(['/portfolio/fills', '/historical/fills', '/portfolio/settlements', '/portfolio/deposits', '/portfolio/withdrawals']);
 const marketPaths = new Set(['/markets', '/historical/markets']);
+const cashFlowPaths = new Set(['/portfolio/deposits', '/portfolio/withdrawals']);
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -52,6 +53,8 @@ export function createHandler({ supabaseUrl, supabaseKey, fetcher = fetch }) {
         url.searchParams.set('limit', '1000');
       } else if (path === '/portfolio/balance') {
         url.searchParams.set('subaccount', '0');
+      } else if (cashFlowPaths.has(path)) {
+        url.searchParams.set('limit', '500');
       } else {
         url.searchParams.set('limit', '1000');
         url.searchParams.set('max_ts', String(maxTs));
